@@ -76,11 +76,20 @@ class NextActionData:
 
 
 def build(games: pd.DataFrame | None = None, engine: Engine | None = None, out_dir: Path | None = None,
-          verbose: bool = True) -> tuple[NextActionData, pd.DataFrame, Engine]:
-    """Run the engine over all games and write the datasets. Returns (next-action, win, engine)."""
+          verbose: bool = True, history: pd.DataFrame | None = None) -> tuple[NextActionData, pd.DataFrame, Engine]:
+    """Run the engine over all games and write the datasets. Returns (next-action, win, engine).
+
+    ``history``: history-only games, replayed in the same chronological pass but never
+    featurised. Defaults to the configured history leagues when ``games`` is not given, and
+    to none when it is.
+    """
     from . import build_engine
 
-    games = pd.read_parquet(config.GAMES_PATH) if games is None else games
+    if games is None:
+        from ..ingest.oracles_elixir import load_history
+
+        games = pd.read_parquet(config.GAMES_PATH)
+        history = load_history() if history is None else history
     engine = engine or build_engine()
     out_dir = Path(out_dir or FEATURE_DIR)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -129,7 +138,8 @@ def build(games: pd.DataFrame | None = None, engine: Engine | None = None, out_d
         if verbose and len(win_rows) % (len(WIN_CHECKPOINTS) * 1000) == 0:
             print(f"  {len(win_rows) // len(WIN_CHECKPOINTS)} games", flush=True)
 
-    engine.process(recs, visit)
+    hist_recs = records_from_games(history, engine.champs, history=True) if history is not None else []
+    engine.process(recs + hist_recs, visit)
     n = state["n"]
     state["X"].flush()
     actions = pd.DataFrame(act_rows, columns=["game_id", "series_id", "action_index", "action_type", "phase", "draft_slot",
@@ -148,8 +158,10 @@ def build(games: pd.DataFrame | None = None, engine: Engine | None = None, out_d
     np.save(out_dir / "row_label.npy", row_label[:n])
     actions.to_parquet(out_dir / "actions.parquet", index=False)
     win.to_parquet(out_dir / "win.parquet", index=False)
-    (out_dir / "meta.json").write_text(json.dumps({"cand_names": state["cand_names"], "ctx_names": state["ctx_names"],
-                                                   "n_rows": int(n), "champions": engine.champs.names}))
+    (out_dir / "meta.json").write_text(json.dumps({
+        "cand_names": state["cand_names"], "ctx_names": state["ctx_names"], "n_rows": int(n),
+        "champions": engine.champs.names, "n_history_games": len(hist_recs),
+        "history_leagues": sorted({r.pre.league for r in hist_recs}), "history_blocks": sorted(engine.history_blocks)}))
     return load(out_dir), win, engine
 
 

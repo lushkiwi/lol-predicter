@@ -58,7 +58,9 @@ def download(years=None, cookies_from_browser: str | None = None) -> list[Path]:
 
 
 def load_raw(years=None, leagues=None) -> pd.DataFrame:
-    """Load the pre-game columns for the configured leagues/years (parquet-cached per year)."""
+    """Load the pre-game columns for the configured leagues/years (parquet-cached per year).
+
+    ``leagues="*"`` keeps every league in the files (used for the history-only games)."""
     frames = []
     for year in years or config.YEARS:
         src = csv_path(year)
@@ -73,6 +75,8 @@ def load_raw(years=None, leagues=None) -> pd.DataFrame:
             df.to_parquet(cache, index=False)
         frames.append(pd.read_parquet(cache))
     raw = pd.concat(frames, ignore_index=True)
+    if leagues == "*":
+        return raw
     leagues = leagues or config.LEAGUES
     return raw[raw["league"].isin(leagues)].reset_index(drop=True)
 
@@ -84,7 +88,9 @@ def _clean_list(values) -> list:
     return [None if draft.is_missing(v) else str(v) for v in values]
 
 
-def _patch_parts(patch: str) -> tuple[int, int]:
+def _patch_parts(patch) -> tuple[int, int]:
+    if draft.is_missing(patch):
+        return -1, -1  # a few lower-tier games have no patch; they are history only
     major, _, minor = str(patch).partition(".")
     return int(major), int(minor or 0)
 
@@ -123,7 +129,7 @@ def build_games(raw: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
             "datetime": pd.Timestamp(b.date),
             "gamelength": float(b.gamelength) if not draft.is_missing(b.gamelength) else np.nan,
             "game_in_series": int(b.game),
-            "patch": b.patch,
+            "patch": None if draft.is_missing(b.patch) else b.patch,
             "datacompleteness": b.datacompleteness,
             "blue_team": b.teamname, "red_team": r.teamname,
             "blue_team_id": b.teamid if not draft.is_missing(b.teamid) else f"name:{b.teamname}",
@@ -262,16 +268,41 @@ def build_draft_actions(games: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=cols)
 
 
+def in_scope_mask(games: pd.DataFrame) -> pd.Series:
+    """Games that are predicted and scored: a configured league, not an out-of-scope event."""
+    event = pd.Series(list(zip(games["league"], games["oe_year"])), index=games.index)
+    return games["league"].isin(config.LEAGUES) & ~event.isin(set(config.OUT_OF_SCOPE_EVENTS))
+
+
 def build_all(write: bool = True) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    raw = load_raw()
-    games, fearless_summary = build_games(raw)
+    """Build the in-scope tables, plus ``history_games.parquet`` with every other game in the
+    files (same columns). Series and Fearless detection are per league, so building all leagues
+    together gives the in-scope games exactly the rows they get on their own."""
+    everything, summary = build_games(load_raw(leagues="*"))
+    scope = in_scope_mask(everything)
+    games = everything[scope].reset_index(drop=True)
+    history = everything[~scope].reset_index(drop=True)
+    fearless_summary = summary[in_scope_mask(summary)].reset_index(drop=True)
     actions = build_draft_actions(games)
     if write:
         config.DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
         games.to_parquet(config.GAMES_PATH, index=False)
+        history.to_parquet(config.HISTORY_GAMES_PATH, index=False)
         actions.to_parquet(config.ACTIONS_PATH, index=False)
         fearless_summary.to_csv(config.DATA_PROCESSED / "fearless_summary.csv", index=False)
     return games, actions, fearless_summary
+
+
+def load_history(leagues=None) -> pd.DataFrame:
+    """History-only games: the configured history leagues (``"*"`` in the list = all other
+    leagues) plus the out-of-scope events of the main leagues. Empty frame if not built."""
+    if not config.HISTORY_GAMES_PATH.exists():
+        return pd.DataFrame()
+    h = pd.read_parquet(config.HISTORY_GAMES_PATH)
+    leagues = config.HISTORY_LEAGUES if leagues is None else tuple(leagues)
+    if "*" in leagues:
+        return h
+    return h[h["league"].isin(leagues) | h["league"].isin(config.LEAGUES)].reset_index(drop=True)
 
 
 if __name__ == "__main__":
@@ -285,5 +316,7 @@ if __name__ == "__main__":
         download(cookies_from_browser=args.cookies_from_browser)
     games, actions, summary = build_all()
     print(f"games: {len(games)}  series: {games.series_id.nunique()}  actions: {len(actions)}")
+    hist = load_history()
+    print(f"history-only games ({', '.join(config.HISTORY_LEAGUES)}): {len(hist)}")
     print(f"irregular games: {int(games.irregular.sum())}; dropped: {games.attrs.get('dropped')}")
     print(summary.to_string())

@@ -121,6 +121,8 @@ class GameRecord:
     blue_roles: tuple  # champion id by final role top..sup
     red_roles: tuple
     blue_win: int
+    history: bool = False  # history-only game: updates Engine.history_blocks, never featurised
+    draft_known: bool = True  # False: no draft order / patch, usable only by blocks that ignore the draft
 
     def picks(self, side: str) -> tuple:
         """Champion ids picked by ``side`` in that team's pick order."""
@@ -146,11 +148,22 @@ def to_days(ts) -> float:
     return pd.Timestamp(ts).timestamp() / SECONDS_PER_DAY
 
 
-def records_from_games(games: pd.DataFrame, champs: ChampionIndex) -> list[GameRecord]:
-    """Convert games.parquet rows into GameRecords, sorted by start time."""
+def records_from_games(games: pd.DataFrame, champs: ChampionIndex, history: bool = False) -> list[GameRecord]:
+    """Convert games.parquet rows into GameRecords, sorted by start time.
+
+    In-scope games without a known first pick are skipped. With ``history=True`` (history-only
+    games) they are kept with ``draft_known=False``: the draft order is unknown but players,
+    champions by role and the result still are.
+    """
     out = []
+    if len(games) == 0:
+        return out
     for g in games.sort_values(["datetime", "game_id"], kind="stable").itertuples():
-        if g.first_pick_side not in ("Blue", "Red"):
+        draft_known = g.first_pick_side in ("Blue", "Red") and not draft.is_missing(g.patch)
+        if not draft_known:
+            if not history:
+                continue
+            out.append(_history_record_without_draft(g, champs))
             continue
         pre = PreGame(
             game_id=g.game_id, series_id=g.series_id, game_in_series=int(g.game_in_series),
@@ -159,7 +172,8 @@ def records_from_games(games: pd.DataFrame, champs: ChampionIndex) -> list[GameR
             blue_team=g.blue_team_id, red_team=g.red_team_id,
             blue_players=tuple(g.blue_players), red_players=tuple(g.red_players),
             first_pick_side=g.first_pick_side, fearless=g.fearless,
-            blue_burned=champs.encode(g.blue_unavailable_at_start), red_burned=champs.encode(g.red_unavailable_at_start),
+            blue_burned=champs.encode(g.blue_unavailable_at_start, strict=not history),
+            red_burned=champs.encode(g.red_unavailable_at_start, strict=not history),
             blue_series_wins=int(g.blue_series_wins_before), red_series_wins=int(g.red_series_wins_before),
         )
         per = {"first": g.first_pick_side.lower(), "second": draft.OTHER_SIDE[g.first_pick_side].lower()}
@@ -169,12 +183,30 @@ def records_from_games(games: pd.DataFrame, champs: ChampionIndex) -> list[GameR
         )
         out.append(
             GameRecord(
-                pre=pre, t_end=to_days(g.end_datetime), actions=champs.encode(seq),
-                blue_roles=champs.encode(g.blue_champs_by_role), red_roles=champs.encode(g.red_champs_by_role),
-                blue_win=int(g.winner_side == "Blue"),
+                pre=pre, t_end=to_days(g.end_datetime), actions=champs.encode(seq, strict=not history),
+                blue_roles=champs.encode(g.blue_champs_by_role, strict=not history),
+                red_roles=champs.encode(g.red_champs_by_role, strict=not history),
+                blue_win=int(g.winner_side == "Blue"), history=history,
             )
         )
     return out
+
+
+def _history_record_without_draft(g, champs: ChampionIndex) -> GameRecord:
+    pre = PreGame(
+        game_id=g.game_id, series_id=g.series_id, game_in_series=int(g.game_in_series),
+        t=to_days(g.datetime), patch=None if draft.is_missing(g.patch) else g.patch, league=g.league,
+        season=int(g.oe_year), split=None if draft.is_missing(g.split) else g.split, playoffs=int(g.playoffs),
+        blue_team=g.blue_team_id, red_team=g.red_team_id,
+        blue_players=tuple(g.blue_players), red_players=tuple(g.red_players),
+        first_pick_side=None, fearless="na", blue_burned=(), red_burned=(), blue_series_wins=0, red_series_wins=0,
+    )
+    return GameRecord(
+        pre=pre, t_end=to_days(g.end_datetime), actions=(),
+        blue_roles=champs.encode(g.blue_champs_by_role, strict=False),
+        red_roles=champs.encode(g.red_champs_by_role, strict=False),
+        blue_win=int(g.winner_side == "Blue"), history=True, draft_known=False,
+    )
 
 
 # --------------------------------------------------------------------------------------
@@ -351,6 +383,7 @@ class StatBlock:
     name = "base"
     prefix = "base_"
     engine: "Engine" = None  # set by Engine
+    needs_draft = True  # False: ``update`` only uses players, champions by role and the result
 
     def begin_game(self, pre: PreGame) -> None:
         pass
@@ -370,7 +403,10 @@ class StatBlock:
 
 
 class Engine:
-    def __init__(self, champs: ChampionIndex, blocks: Sequence[StatBlock]):
+    def __init__(self, champs: ChampionIndex, blocks: Sequence[StatBlock], history_blocks: Iterable[str] | None = None):
+        """``history_blocks``: names of the blocks that history-only games update (default
+        ``config.HISTORY_BLOCKS``). In-scope games always update every block."""
+        self.history_blocks = frozenset(config.HISTORY_BLOCKS if history_blocks is None else history_blocks)
         self.champs = champs
         self.C = champs.C
         self.blocks = list(blocks)
@@ -392,6 +428,8 @@ class Engine:
         while self._pending and self._pending[0][0] <= t:
             _, _, g, exp_blue = heapq.heappop(self._pending)
             for b in self.blocks:
+                if g.history and (b.name not in self.history_blocks or (b.needs_draft and not g.draft_known)):
+                    continue
                 b.update(g, exp_blue)
             self.n_applied += 1
         self.t_now = max(self.t_now, t)
@@ -423,8 +461,13 @@ class Engine:
         self._seq += 1
 
     def process(self, games: Iterable[GameRecord], visit: Callable[[GameRecord, "Engine"], None] | None = None) -> None:
-        """Walk games chronologically. ``visit`` is called with state as-of the game start."""
+        """Walk games chronologically. ``visit`` is called with state as-of the game start.
+        History-only games are never visited; they are only queued for the stat blocks."""
         for g in sorted(games, key=lambda r: (r.pre.t, r.pre.game_id)):
+            if g.history:
+                self.advance(g.pre.t)
+                self.submit(g)
+                continue
             self.begin_game(g.pre)
             if visit is not None:
                 visit(g, self)

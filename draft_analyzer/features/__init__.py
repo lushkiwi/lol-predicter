@@ -54,6 +54,20 @@ def default_blocks(champs: ChampionIndex, include: set[str] | None = None) -> li
     return blocks
 
 
-def build_engine(champs: ChampionIndex | None = None, include: set[str] | None = None) -> Engine:
+def build_engine(champs: ChampionIndex | None = None, include: set[str] | None = None,
+                 history_blocks=None) -> Engine:
     champs = champs or ChampionIndex.load()
-    return Engine(champs, default_blocks(champs, include))
+    return Engine(champs, default_blocks(champs, include), history_blocks=history_blocks)
+
+
+def all_records(champs: ChampionIndex, games=None, history=None) -> list:
+    """GameRecords of the in-scope games plus the configured history-only games."""
+    import pandas as pd
+
+    from .. import config
+    from ..ingest.oracles_elixir import load_history
+    from .asof import records_from_games
+
+    games = pd.read_parquet(config.GAMES_PATH) if games is None else games
+    history = load_history() if history is None else history
+    return records_from_games(games, champs) + records_from_games(history, champs, history=True)

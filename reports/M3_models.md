@@ -10,14 +10,14 @@ Rules applied throughout: time-based splits by series start; every comparison is
 |---|---|---|---|---|---|---|
 | train | 2024-01-13 | 2026-07-19 | 6349 | 2626 | 126942 | 19898964 |
 | val | 2026-07-22 | 2026-09-13 | 651 | 240 | 13018 | 1999546 |
-| test | 2026-09-17 | 2026-11-09 | 172 | 66 | 3440 | 524240 |
+| test | 2026-09-17 | 2026-11-09 | 149 | 59 | 2980 | 454430 |
 | (tune, inside train) | 2026-04-01 | 2026-07-19 | 1087 | 425 | 21737 | 3357658 |
 
 ## 1. Next pick/ban model (validation: 651 games / 240 series, 13015 actions)
 
 LightGBM scoring (draft state, candidate champion) pairs with a listwise softmax cross-entropy objective over the available candidates (custom objective; outputs are probabilities). Training samples 60 negatives per action with an importance-weight correction; evaluation always uses every available champion (about 156 per action).
 
-Final configuration: regime **fearless_only**, **one joint model**.
+Final configuration: regime **all_decay365**, **one joint model**.
 
 ### 1.1 Final model vs baselines
 
@@ -31,22 +31,22 @@ Final configuration: regime **fearless_only**, **one joint model**.
 | A_presence | top5 | 0.3731 | -0.0234 | -0.0294 | -0.0174 | worse |
 | A_presence | top10 | 0.5604 | -0.0209 | -0.0267 | -0.0149 | worse |
 | A_presence | log_loss | 3.5822 | 0.0547 | 0.0441 | 0.0650 | worse |
-| model | top1 | 0.2707 | 0.1511 | 0.1437 | 0.1592 | better |
-| model | top5 | 0.6626 | 0.2662 | 0.2567 | 0.2756 | better |
-| model | top10 | 0.8310 | 0.2497 | 0.2409 | 0.2587 | better |
-| model | log_loss | 2.5662 | -0.9613 | -0.9845 | -0.9384 | better |
+| model | top1 | 0.2748 | 0.1553 | 0.1479 | 0.1633 | better |
+| model | top5 | 0.6622 | 0.2657 | 0.2565 | 0.2749 | better |
+| model | top10 | 0.8320 | 0.2507 | 0.2420 | 0.2602 | better |
+| model | log_loss | 2.5580 | -0.9695 | -0.9948 | -0.9458 | better |
 
 By action type and draft phase (final model):
 
 | group | slice | top1 | top5 | top10 | log_loss | n_actions | n_games | n_series |
 |---|---|---|---|---|---|---|---|---|
-| overall | all | 0.2707 | 0.6626 | 0.8310 | 2.5662 | 13015 | 651 | 240 |
-| action_type | ban | 0.2675 | 0.6735 | 0.8407 | 2.5286 | 6505 | 651 | 240 |
-| action_type | pick | 0.2739 | 0.6518 | 0.8212 | 2.6039 | 6510 | 651 | 240 |
-| phase | ban1 | 0.3208 | 0.7274 | 0.8750 | 2.3199 | 3903 | 651 | 240 |
-| phase | pick1 | 0.2998 | 0.6726 | 0.8367 | 2.5090 | 3906 | 651 | 240 |
-| phase | ban2 | 0.1875 | 0.5926 | 0.7894 | 2.8416 | 2602 | 651 | 240 |
-| phase | pick2 | 0.2350 | 0.6206 | 0.7980 | 2.7461 | 2604 | 651 | 240 |
+| overall | all | 0.2748 | 0.6622 | 0.8320 | 2.5580 | 13015 | 651 | 240 |
+| action_type | ban | 0.2733 | 0.6681 | 0.8444 | 2.5255 | 6505 | 651 | 240 |
+| action_type | pick | 0.2763 | 0.6562 | 0.8195 | 2.5905 | 6510 | 651 | 240 |
+| phase | ban1 | 0.3254 | 0.7248 | 0.8837 | 2.3124 | 3903 | 651 | 240 |
+| phase | pick1 | 0.3024 | 0.6818 | 0.8331 | 2.4896 | 3906 | 651 | 240 |
+| phase | ban2 | 0.1952 | 0.5830 | 0.7855 | 2.8452 | 2602 | 651 | 240 |
+| phase | pick2 | 0.2373 | 0.6179 | 0.7992 | 2.7417 | 2604 | 651 | 240 |
 
 Same slices for baseline B, for reference:
 
@@ -64,24 +64,24 @@ Model vs baseline B within each slice:
 
 | slice | metric | model | baseline_B | diff | ci_low | ci_high | beats_B |
 |---|---|---|---|---|---|---|---|
-| ban | top1 | 0.2675 | 0.1453 | 0.1222 | 0.1095 | 0.1342 | True |
-| ban | top5 | 0.6735 | 0.4652 | 0.2083 | 0.1947 | 0.2227 | True |
-| ban | log_loss | 2.5286 | 3.3227 | -0.7942 | -0.8272 | -0.7621 | True |
-| pick | top1 | 0.2739 | 0.0939 | 0.1800 | 0.1696 | 0.1905 | True |
-| pick | top5 | 0.6518 | 0.3278 | 0.3240 | 0.3098 | 0.3376 | True |
-| pick | log_loss | 2.6039 | 3.7322 | -1.1283 | -1.1620 | -1.0940 | True |
-| ban1 | top1 | 0.3208 | 0.1996 | 0.1212 | 0.1025 | 0.1392 | True |
-| ban1 | top5 | 0.7274 | 0.5844 | 0.1430 | 0.1256 | 0.1611 | True |
-| ban1 | log_loss | 2.3199 | 2.9808 | -0.6609 | -0.7052 | -0.6179 | True |
-| pick1 | top1 | 0.2998 | 0.1249 | 0.1749 | 0.1607 | 0.1885 | True |
-| pick1 | top5 | 0.6726 | 0.4017 | 0.2709 | 0.2530 | 0.2876 | True |
-| pick1 | log_loss | 2.5090 | 3.5272 | -1.0182 | -1.0603 | -0.9755 | True |
-| ban2 | top1 | 0.1875 | 0.0638 | 0.1238 | 0.1074 | 0.1399 | True |
-| ban2 | top5 | 0.5926 | 0.2863 | 0.3063 | 0.2872 | 0.3272 | True |
-| ban2 | log_loss | 2.8416 | 3.8356 | -0.9940 | -1.0400 | -0.9496 | True |
-| pick2 | top1 | 0.2350 | 0.0472 | 0.1878 | 0.1711 | 0.2059 | True |
-| pick2 | top5 | 0.6206 | 0.2170 | 0.4036 | 0.3796 | 0.4277 | True |
-| pick2 | log_loss | 2.7461 | 4.0397 | -1.2935 | -1.3448 | -1.2397 | True |
+| ban | top1 | 0.2733 | 0.1453 | 0.1281 | 0.1154 | 0.1403 | True |
+| ban | top5 | 0.6681 | 0.4652 | 0.2029 | 0.1894 | 0.2181 | True |
+| ban | log_loss | 2.5255 | 3.3227 | -0.7972 | -0.8328 | -0.7641 | True |
+| pick | top1 | 0.2763 | 0.0939 | 0.1825 | 0.1722 | 0.1932 | True |
+| pick | top5 | 0.6562 | 0.3278 | 0.3284 | 0.3145 | 0.3433 | True |
+| pick | log_loss | 2.5905 | 3.7322 | -1.1417 | -1.1775 | -1.1069 | True |
+| ban1 | top1 | 0.3254 | 0.1996 | 0.1258 | 0.1076 | 0.1435 | True |
+| ban1 | top5 | 0.7248 | 0.5844 | 0.1404 | 0.1232 | 0.1586 | True |
+| ban1 | log_loss | 2.3124 | 2.9808 | -0.6684 | -0.7149 | -0.6254 | True |
+| pick1 | top1 | 0.3024 | 0.1249 | 0.1774 | 0.1637 | 0.1910 | True |
+| pick1 | top5 | 0.6818 | 0.4017 | 0.2801 | 0.2622 | 0.2969 | True |
+| pick1 | log_loss | 2.4896 | 3.5272 | -1.0376 | -1.0784 | -0.9954 | True |
+| ban2 | top1 | 0.1952 | 0.0638 | 0.1314 | 0.1164 | 0.1472 | True |
+| ban2 | top5 | 0.5830 | 0.2863 | 0.2967 | 0.2770 | 0.3174 | True |
+| ban2 | log_loss | 2.8452 | 3.8356 | -0.9904 | -1.0375 | -0.9434 | True |
+| pick2 | top1 | 0.2373 | 0.0472 | 0.1901 | 0.1739 | 0.2083 | True |
+| pick2 | top5 | 0.6179 | 0.2170 | 0.4009 | 0.3770 | 0.4241 | True |
+| pick2 | log_loss | 2.7417 | 4.0397 | -1.2979 | -1.3499 | -1.2440 | True |
 
 ### 1.2 Regime handling: does pre-Fearless data help?
 
@@ -91,39 +91,39 @@ Model vs baseline B within each slice:
 
 | model | metric | value | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|
-| fearless_only | top1 | 0.2707 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| fearless_only | top5 | 0.6626 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| fearless_only | top10 | 0.8310 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| fearless_only | log_loss | 2.5662 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| all_decay365 | top1 | 0.2715 | 0.0008 | -0.0040 | 0.0056 | tie |
-| all_decay365 | top5 | 0.6571 | -0.0055 | -0.0102 | -0.0006 | worse |
-| all_decay365 | top10 | 0.8283 | -0.0027 | -0.0060 | 0.0006 | tie |
-| all_decay365 | log_loss | 2.5795 | 0.0133 | 0.0082 | 0.0182 | worse |
-| all_nodecay | top1 | 0.2692 | -0.0015 | -0.0069 | 0.0038 | tie |
-| all_nodecay | top5 | 0.6562 | -0.0065 | -0.0111 | -0.0018 | worse |
-| all_nodecay | top10 | 0.8287 | -0.0023 | -0.0057 | 0.0009 | tie |
-| all_nodecay | log_loss | 2.5767 | 0.0105 | 0.0049 | 0.0166 | worse |
+| fearless_only | top1 | 0.2712 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| fearless_only | top5 | 0.6612 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| fearless_only | top10 | 0.8307 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| fearless_only | log_loss | 2.5673 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| all_decay365 | top1 | 0.2748 | 0.0036 | -0.0013 | 0.0083 | tie |
+| all_decay365 | top5 | 0.6622 | 0.0009 | -0.0038 | 0.0058 | tie |
+| all_decay365 | top10 | 0.8320 | 0.0013 | -0.0018 | 0.0043 | tie |
+| all_decay365 | log_loss | 2.5580 | -0.0093 | -0.0149 | -0.0037 | better |
+| all_nodecay | top1 | 0.2727 | 0.0015 | -0.0038 | 0.0067 | tie |
+| all_nodecay | top5 | 0.6591 | -0.0022 | -0.0065 | 0.0022 | tie |
+| all_nodecay | top10 | 0.8321 | 0.0015 | -0.0019 | 0.0048 | tie |
+| all_nodecay | log_loss | 2.5660 | -0.0013 | -0.0073 | 0.0046 | tie |
 
 | run | train_actions | early_stop_round | tune_log_loss | seconds |
 |---|---|---|---|---|
-| gbm_fearless_only | 88675 | 633 | 2.6006 | 148 |
-| gbm_all_decay365 | 126942 | 469 | 2.5938 | 173 |
-| gbm_all_nodecay | 126942 | 661 | 2.5853 | 206 |
+| gbm_fearless_only | 88674 | 635 | 2.5865 | 140 |
+| gbm_all_decay365 | 126941 | 746 | 2.5761 | 238 |
+| gbm_all_nodecay | 126941 | 849 | 2.5702 | 256 |
 
-Decision rule: keep the all-games variant only if it beats fearless-only on log loss with a CI excluding zero. Kept: **fearless_only**.
+Decision rule: keep the all-games variant only if it beats fearless-only on log loss with a CI excluding zero. Kept: **all_decay365**.
 
 ### 1.3 One joint model vs separate pick and ban models
 
 | model | metric | value | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|
-| joint | top1 | 0.2707 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| joint | top5 | 0.6626 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| joint | top10 | 0.8310 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| joint | log_loss | 2.5662 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| separate | top1 | 0.2678 | -0.0028 | -0.0087 | 0.0029 | tie |
-| separate | top5 | 0.6624 | -0.0002 | -0.0054 | 0.0047 | tie |
-| separate | top10 | 0.8312 | 0.0002 | -0.0034 | 0.0039 | tie |
-| separate | log_loss | 2.5701 | 0.0038 | -0.0034 | 0.0111 | tie |
+| joint | top1 | 0.2748 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| joint | top5 | 0.6622 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| joint | top10 | 0.8320 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| joint | log_loss | 2.5580 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| separate | top1 | 0.2739 | -0.0009 | -0.0063 | 0.0046 | tie |
+| separate | top5 | 0.6599 | -0.0022 | -0.0072 | 0.0029 | tie |
+| separate | top10 | 0.8318 | -0.0002 | -0.0043 | 0.0036 | tie |
+| separate | log_loss | 2.5608 | 0.0028 | -0.0040 | 0.0098 | tie |
 
 Separate models kept: **False** (they are kept only if they win on log loss).
 
@@ -133,46 +133,46 @@ Each row retrains the joint model without one feature group (same recipe and num
 
 | removed_group | without | full | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|
-| champion meta strength | 2.8130 | 2.5662 | 0.2468 | 0.2281 | 0.2664 | earns its place |
-| champion attributes (Data Dragon tags) | 2.5729 | 2.5662 | 0.0067 | 0.0018 | 0.0115 | earns its place |
-| role fit / role distributions | 2.6779 | 2.5662 | 0.1117 | 0.1036 | 0.1200 | earns its place |
-| team tendency | 2.5931 | 2.5662 | 0.0269 | 0.0204 | 0.0338 | earns its place |
-| player comfort / mastery | 2.5897 | 2.5662 | 0.0235 | 0.0171 | 0.0304 | earns its place |
-| synergy / counter (pairwise) | 2.7110 | 2.5662 | 0.1448 | 0.1336 | 0.1561 | earns its place |
-| team strength (Elo) | 2.5738 | 2.5662 | 0.0076 | 0.0023 | 0.0129 | earns its place |
-| series context (Fearless burns, earlier bans, score) | 2.5943 | 2.5662 | 0.0280 | 0.0212 | 0.0347 | earns its place |
+| champion meta strength | 2.7907 | 2.5580 | 0.2327 | 0.2151 | 0.2515 | earns its place |
+| champion attributes (Data Dragon tags) | 2.5614 | 2.5580 | 0.0034 | -0.0015 | 0.0083 | tie |
+| role fit / role distributions | 2.6634 | 2.5580 | 0.1054 | 0.0974 | 0.1135 | earns its place |
+| team tendency | 2.5781 | 2.5580 | 0.0201 | 0.0123 | 0.0276 | earns its place |
+| player comfort / mastery | 2.5774 | 2.5580 | 0.0193 | 0.0130 | 0.0262 | earns its place |
+| synergy / counter (pairwise) | 2.6893 | 2.5580 | 0.1313 | 0.1203 | 0.1420 | earns its place |
+| team strength (Elo) | 2.5591 | 2.5580 | 0.0010 | -0.0035 | 0.0059 | tie |
+| series context (Fearless burns, earlier bans, score) | 2.5830 | 2.5580 | 0.0250 | 0.0181 | 0.0312 | earns its place |
 
 Top-1 and top-5:
 
 | removed_group | metric | without | full | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|---|
-| champion meta strength | top1 | 0.2289 | 0.2707 | -0.0418 | -0.0490 | -0.0345 | earns its place |
-| champion meta strength | top5 | 0.5988 | 0.6626 | -0.0638 | -0.0723 | -0.0554 | earns its place |
-| champion attributes (Data Dragon tags) | top1 | 0.2718 | 0.2707 | 0.0011 | -0.0041 | 0.0061 | tie |
-| champion attributes (Data Dragon tags) | top5 | 0.6588 | 0.6626 | -0.0038 | -0.0086 | 0.0010 | tie |
-| role fit / role distributions | top1 | 0.2571 | 0.2707 | -0.0136 | -0.0187 | -0.0083 | earns its place |
-| role fit / role distributions | top5 | 0.6348 | 0.6626 | -0.0278 | -0.0338 | -0.0222 | earns its place |
-| team tendency | top1 | 0.2690 | 0.2707 | -0.0017 | -0.0072 | 0.0037 | tie |
-| team tendency | top5 | 0.6509 | 0.6626 | -0.0117 | -0.0165 | -0.0068 | earns its place |
-| player comfort / mastery | top1 | 0.2711 | 0.2707 | 0.0004 | -0.0058 | 0.0067 | tie |
-| player comfort / mastery | top5 | 0.6531 | 0.6626 | -0.0095 | -0.0152 | -0.0042 | earns its place |
-| synergy / counter (pairwise) | top1 | 0.2326 | 0.2707 | -0.0381 | -0.0444 | -0.0316 | earns its place |
-| synergy / counter (pairwise) | top5 | 0.6174 | 0.6626 | -0.0452 | -0.0523 | -0.0385 | earns its place |
-| team strength (Elo) | top1 | 0.2701 | 0.2707 | -0.0005 | -0.0052 | 0.0043 | tie |
-| team strength (Elo) | top5 | 0.6604 | 0.6626 | -0.0022 | -0.0068 | 0.0023 | tie |
-| series context (Fearless burns, earlier bans, score) | top1 | 0.2674 | 0.2707 | -0.0033 | -0.0083 | 0.0021 | tie |
-| series context (Fearless burns, earlier bans, score) | top5 | 0.6546 | 0.6626 | -0.0080 | -0.0128 | -0.0032 | earns its place |
+| champion meta strength | top1 | 0.2392 | 0.2748 | -0.0357 | -0.0430 | -0.0283 | earns its place |
+| champion meta strength | top5 | 0.5999 | 0.6622 | -0.0622 | -0.0705 | -0.0542 | earns its place |
+| champion attributes (Data Dragon tags) | top1 | 0.2743 | 0.2748 | -0.0005 | -0.0053 | 0.0045 | tie |
+| champion attributes (Data Dragon tags) | top5 | 0.6613 | 0.6622 | -0.0008 | -0.0056 | 0.0040 | tie |
+| role fit / role distributions | top1 | 0.2662 | 0.2748 | -0.0087 | -0.0142 | -0.0032 | earns its place |
+| role fit / role distributions | top5 | 0.6361 | 0.6622 | -0.0260 | -0.0318 | -0.0207 | earns its place |
+| team tendency | top1 | 0.2745 | 0.2748 | -0.0004 | -0.0060 | 0.0051 | tie |
+| team tendency | top5 | 0.6552 | 0.6622 | -0.0069 | -0.0123 | -0.0016 | earns its place |
+| player comfort / mastery | top1 | 0.2705 | 0.2748 | -0.0043 | -0.0098 | 0.0008 | tie |
+| player comfort / mastery | top5 | 0.6555 | 0.6622 | -0.0067 | -0.0123 | -0.0013 | earns its place |
+| synergy / counter (pairwise) | top1 | 0.2445 | 0.2748 | -0.0303 | -0.0364 | -0.0242 | earns its place |
+| synergy / counter (pairwise) | top5 | 0.6218 | 0.6622 | -0.0403 | -0.0465 | -0.0343 | earns its place |
+| team strength (Elo) | top1 | 0.2786 | 0.2748 | 0.0038 | -0.0015 | 0.0089 | tie |
+| team strength (Elo) | top5 | 0.6607 | 0.6622 | -0.0015 | -0.0062 | 0.0032 | tie |
+| series context (Fearless burns, earlier bans, score) | top1 | 0.2740 | 0.2748 | -0.0008 | -0.0066 | 0.0047 | tie |
+| series context (Fearless burns, earlier bans, score) | top5 | 0.6560 | 0.6622 | -0.0061 | -0.0113 | -0.0012 | earns its place |
 
 The pairwise group split in two (log loss), because the spec asks whether pro-only synergy and counter statistics help at all:
 
 | removed | without | full | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|
-| win-based synergy/counter only (pair_syn_*, pair_ctr_*) | 2.5686 | 2.5662 | 0.0024 | -0.0027 | 0.0075 | tie |
-| co-draft frequency only (pair_colift_*, pair_vslift_*, pair_evidence_*) | 2.7101 | 2.5662 | 0.1439 | 0.1325 | 0.1552 | earns its place |
+| win-based synergy/counter only (pair_syn_*, pair_ctr_*) | 2.5615 | 2.5580 | 0.0034 | -0.0021 | 0.0094 | tie |
+| co-draft frequency only (pair_colift_*, pair_vslift_*, pair_evidence_*) | 2.7059 | 2.5580 | 0.1479 | 0.1360 | 0.1600 | earns its place |
 
 So the win-based synergy/counter estimates (the ones pro samples are too small for) add nothing measurable; the whole gain of the group comes from how often champions are drafted together or into each other, which is a statement about drafting habits, not about winning.
 
-For scale, a model with ONLY champion-meta and draft-position features scores log loss 3.2654 (full model 2.5662; diff +0.6991, CI [+0.6771, +0.7213]).
+For scale, a model with ONLY champion-meta and draft-position features scores log loss 3.2579 (full model 2.5580; diff +0.6999, CI [+0.6783, +0.7221]).
 
 ### 1.5 Feature importance
 
@@ -180,45 +180,45 @@ By group (gain share; summed mean |SHAP| on 1,500 validation actions):
 
 | group | gain_share | mean_abs_shap | n_features |
 |---|---|---|---|
-| champion meta strength | 0.6136 | 2.5725 | 14 |
-| role fit | 0.1236 | 1.2549 | 18 |
-| team tendency | 0.0480 | 0.5271 | 10 |
-| draft context | 0.0774 | 0.4877 | 9 |
-| synergy/counter | 0.0726 | 0.4785 | 10 |
-| player comfort | 0.0301 | 0.4530 | 12 |
-| series context | 0.0304 | 0.1852 | 8 |
-| team strength | 0.0025 | 0.0407 | 3 |
-| champion attributes | 0.0018 | 0.0324 | 7 |
+| champion meta strength | 0.5996 | 2.6627 | 14 |
+| role fit | 0.1199 | 1.3193 | 18 |
+| player comfort | 0.0337 | 0.5877 | 12 |
+| team tendency | 0.0511 | 0.4819 | 10 |
+| draft context | 0.0819 | 0.4662 | 9 |
+| synergy/counter | 0.0762 | 0.4552 | 10 |
+| series context | 0.0330 | 0.1987 | 8 |
+| team strength | 0.0027 | 0.0381 | 3 |
+| champion attributes | 0.0020 | 0.0315 | 7 |
 
 Top 25 features:
 
 | feature | group | gain | mean_abs_shap |
 |---|---|---|---|
-| meta_rate_action | champion meta strength | 0.2161 | 0.5269 |
-| meta_presence_patch_raw | champion meta strength | 0.1638 | 0.2045 |
-| meta_presence_recent | champion meta strength | 0.1026 | 0.7483 |
-| meta_rate_type | champion meta strength | 0.0583 | 0.1346 |
-| ctx_action_index | draft context | 0.0414 | 0.2249 |
-| role_fit_own | role fit | 0.0406 | 0.3861 |
-| meta_rate_phase_slot | champion meta strength | 0.0385 | 0.0335 |
-| role_fit_opp | role fit | 0.0378 | 0.1909 |
-| pair_colift_own | synergy/counter | 0.0355 | 0.1001 |
-| ctx_is_pick | draft context | 0.0234 | 0.1455 |
-| series_ban_own_prev | series context | 0.0222 | 0.0196 |
-| meta_presence_long | champion meta strength | 0.0144 | 0.2769 |
-| pair_colift_opp | synergy/counter | 0.0123 | 0.0482 |
-| team_pick_rate_opp_recent | team tendency | 0.0122 | 0.1508 |
-| team_banned_against_opp | team tendency | 0.0117 | 0.0835 |
-| pair_vslift_opp | synergy/counter | 0.0095 | 0.0997 |
-| pair_evidence_own | synergy/counter | 0.0075 | 0.1493 |
-| meta_presence_league | champion meta strength | 0.0073 | 0.3847 |
-| player_share_own | player comfort | 0.0071 | 0.0632 |
-| role_p_sup | role fit | 0.0070 | 0.0639 |
-| team_pick_rate_own_recent | team tendency | 0.0068 | 0.0847 |
-| player_win_resid_own | player comfort | 0.0061 | 0.0401 |
-| team_ban_rate_own | team tendency | 0.0058 | 0.0580 |
-| player_win_resid_opp | player comfort | 0.0053 | 0.0486 |
-| role_p_jng | role fit | 0.0053 | 0.0417 |
+| meta_rate_action | champion meta strength | 0.2131 | 0.5723 |
+| meta_presence_patch_raw | champion meta strength | 0.1681 | 0.2518 |
+| meta_presence_recent | champion meta strength | 0.0772 | 0.7480 |
+| meta_rate_type | champion meta strength | 0.0767 | 0.1641 |
+| ctx_action_index | draft context | 0.0443 | 0.1958 |
+| pair_colift_own | synergy/counter | 0.0403 | 0.1039 |
+| role_fit_own | role fit | 0.0391 | 0.3739 |
+| role_fit_opp | role fit | 0.0383 | 0.1862 |
+| meta_rate_phase_slot | champion meta strength | 0.0296 | 0.0375 |
+| series_ban_own_prev | series context | 0.0258 | 0.0210 |
+| ctx_is_pick | draft context | 0.0229 | 0.1444 |
+| meta_presence_long | champion meta strength | 0.0154 | 0.3143 |
+| team_pick_rate_opp_recent | team tendency | 0.0133 | 0.1564 |
+| team_banned_against_opp | team tendency | 0.0127 | 0.0769 |
+| pair_colift_opp | synergy/counter | 0.0118 | 0.0498 |
+| pair_vslift_opp | synergy/counter | 0.0098 | 0.0969 |
+| team_pick_rate_own_recent | team tendency | 0.0075 | 0.0587 |
+| player_share_own | player comfort | 0.0073 | 0.0662 |
+| role_p_sup | role fit | 0.0069 | 0.0520 |
+| team_ban_rate_own | team tendency | 0.0062 | 0.0646 |
+| pair_evidence_own | synergy/counter | 0.0060 | 0.1038 |
+| meta_presence_league | champion meta strength | 0.0059 | 0.3386 |
+| player_win_resid_own | player comfort | 0.0059 | 0.0469 |
+| player_win_resid_opp | player comfort | 0.0053 | 0.0462 |
+| ctx_phase | draft context | 0.0053 | 0.0571 |
 
 ### 1.6 Are the probabilities honest?
 
@@ -226,14 +226,14 @@ Top-1 confidence vs accuracy on validation (joint model). A calibrated model has
 
 | bin | actions | mean_top1_prob | top1_accuracy |
 |---|---|---|---|
-| [0.0, 0.1) | 87 | 0.0917 | 0.1149 |
-| [0.1, 0.2) | 4096 | 0.1603 | 0.1550 |
-| [0.2, 0.3) | 4304 | 0.2454 | 0.2224 |
-| [0.3, 0.4) | 2215 | 0.3444 | 0.3214 |
-| [0.4, 0.5) | 1147 | 0.4440 | 0.4281 |
-| [0.5, 0.6) | 574 | 0.5428 | 0.5279 |
-| [0.6, 0.8) | 478 | 0.6791 | 0.6715 |
-| [0.8, 1.0) | 114 | 0.8627 | 0.8246 |
+| [0.0, 0.1) | 69 | 0.0908 | 0.0725 |
+| [0.1, 0.2) | 3943 | 0.1603 | 0.1605 |
+| [0.2, 0.3) | 4249 | 0.2447 | 0.2276 |
+| [0.3, 0.4) | 2214 | 0.3458 | 0.3071 |
+| [0.4, 0.5) | 1251 | 0.4437 | 0.4173 |
+| [0.5, 0.6) | 607 | 0.5456 | 0.4992 |
+| [0.6, 0.8) | 560 | 0.6813 | 0.6571 |
+| [0.8, 1.0) | 122 | 0.8636 | 0.8115 |
 
 ### 1.7 Failure cases: confidently wrong (validation)
 
@@ -241,52 +241,52 @@ The 15 actions where the model put the most probability on a champion that was n
 
 | game | action | predicted | p_pred | actual | p_actual | rank_actual |
 |---|---|---|---|---|---|---|
-| LCK 2026-08-20 Nongshim RedForce vs Kiwoom DRX g2 | 10 (Red pick) | Bard | 0.902 | Shen | 0.015 | 3 |
-| LPL 2026-08-28 Invictus Gaming vs ThunderTalk Gaming g2 | 8 (Blue pick) | Seraphine | 0.890 | Naafiri | 0.026 | 2 |
-| LEC 2026-08-30 Team Heretics vs Movistar KOI g1 | 18 (Blue pick) | Milio | 0.886 | Nami | 0.022 | 2 |
-| LCP 2026-07-26 GAM Esports vs DetonatioN FocusMe g2 | 3 (Blue ban) | Orianna | 0.881 | Rumble | 0.006 | 7 |
-| LPL 2026-09-03 Bilibili Gaming vs Team WE g3 | 6 (Blue pick) | Orianna | 0.876 | Jayce | 0.008 | 7 |
-| LCP 2026-07-31 CTBC Flying Oyster vs GAM Esports g3 | 6 (Red pick) | Orianna | 0.859 | Varus | 0.035 | 2 |
-| LEC 2026-08-23 GiantX vs Team Heretics g2 | 11 (Red pick) | Milio | 0.857 | Leona | 0.016 | 2 |
-| LPL 2026-07-22 Top Esports vs Team WE g2 | 1 (Blue ban) | Orianna | 0.857 | Naafiri | 0.021 | 4 |
-| LCK 2026-08-01 BNK FEARX vs Nongshim RedForce g3 | 6 (Red pick) | Orianna | 0.852 | Locke | 0.039 | 3 |
-| LEC 2026-07-31 Team Vitality vs Team Heretics g2 | 6 (Blue pick) | Orianna | 0.832 | Cassiopeia | 0.047 | 3 |
-| LPL 2026-09-06 Ninjas in Pyjamas vs LGD Gaming g5 | 8 (Blue pick) | Vi | 0.831 | Rakan | 0.027 | 3 |
-| LCS 2026-08-29 Team Liquid vs Shopify Rebellion g3 | 9 (Red pick) | Milio | 0.829 | Skarner | 0.010 | 5 |
-| LPL 2026-08-30 Team WE vs JD Gaming g3 | 6 (Red pick) | Orianna | 0.824 | Olaf | 0.024 | 2 |
-| LCK 2026-08-05 Nongshim RedForce vs HANJIN BRION g3 | 8 (Red pick) | Milio | 0.819 | Xin Zhao | 0.047 | 2 |
-| LCP 2026-07-26 GAM Esports vs DetonatioN FocusMe g2 | 5 (Blue ban) | Orianna | 0.819 | Vi | 0.024 | 3 |
+| LCP 2026-07-31 CTBC Flying Oyster vs GAM Esports g3 | 6 (Red pick) | Orianna | 0.890 | Varus | 0.025 | 2 |
+| LCK 2026-08-01 BNK FEARX vs Nongshim RedForce g3 | 6 (Red pick) | Orianna | 0.880 | Locke | 0.017 | 3 |
+| LCS 2026-08-29 Team Liquid vs Shopify Rebellion g3 | 9 (Red pick) | Milio | 0.880 | Skarner | 0.008 | 5 |
+| LEC 2026-08-23 GiantX vs Team Heretics g2 | 11 (Red pick) | Milio | 0.860 | Leona | 0.009 | 6 |
+| LPL 2026-08-30 Team WE vs JD Gaming g3 | 6 (Red pick) | Orianna | 0.852 | Olaf | 0.019 | 3 |
+| LPL 2026-09-06 Team WE vs Invictus Gaming g2 | 5 (Blue ban) | Orianna | 0.848 | Jarvan IV | 0.033 | 2 |
+| LCS 2026-08-15 Team Liquid vs Disguised g2 | 11 (Blue pick) | Milio | 0.843 | Nami | 0.031 | 2 |
+| LPL 2026-08-01 Anyone's Legend vs ThunderTalk Gaming g2 | 10 (Blue pick) | Leona | 0.842 | Skarner | 0.010 | 8 |
+| LPL 2026-09-03 Bilibili Gaming vs Team WE g3 | 6 (Blue pick) | Orianna | 0.841 | Jayce | 0.013 | 6 |
+| LCS 2026-08-30 LYON vs Team Liquid g2 | 6 (Red pick) | Orianna | 0.837 | Pantheon | 0.008 | 6 |
+| LCK 2026-08-20 Nongshim RedForce vs Kiwoom DRX g2 | 10 (Red pick) | Bard | 0.837 | Shen | 0.032 | 3 |
+| LPL 2026-08-28 Invictus Gaming vs ThunderTalk Gaming g2 | 8 (Blue pick) | Seraphine | 0.836 | Naafiri | 0.036 | 3 |
+| LPL 2026-08-23 Bilibili Gaming vs Anyone's Legend g3 | 6 (Red pick) | Orianna | 0.835 | Seraphine | 0.008 | 6 |
+| LCS 2026-08-29 LYON vs Cloud9 g2 | 6 (Red pick) | Orianna | 0.827 | Jarvan IV | 0.033 | 3 |
+| LCP 2026-07-26 GAM Esports vs DetonatioN FocusMe g2 | 3 (Blue ban) | Orianna | 0.822 | Rumble | 0.012 | 6 |
 
-Surprises: in 56 of 13015 validation actions (0.4%) the chosen champion was ranked below 50. By phase: {"pick2": 29, "ban2": 12, "pick1": 10, "ban1": 5}. Most frequent surprise champions: LeBlanc (3), Kai'Sa (3), Locke (2), Xerath (2), Volibear (2), Seraphine (2), Taliyah (2), Kalista (2).
+Surprises: in 61 of 13015 validation actions (0.5%) the chosen champion was ranked below 50. By phase: {"pick2": 33, "pick1": 11, "ban2": 11, "ban1": 6}. Most frequent surprise champions: Taliyah (4), Vladimir (3), Kai'Sa (3), Locke (2), Xerath (2), Dr. Mundo (2), Volibear (2), Seraphine (2).
 
-When the model is at least 50% confident (1166 actions) it is right 61.6% of the time (mean confidence 63.0%).
+When the model is at least 50% confident (1289 actions) it is right 59.7% of the time (mean confidence 63.5%).
 
-### 1.8 Test split, scored once (172 games / 66 series, 3440 actions; Worlds 2026 and later)
+### 1.8 Test split, scored once (149 games / 59 series, 2980 actions; Worlds 2026 and later)
 
 | model | metric | value | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|
-| B_presence_team | top1 | 0.1416 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| B_presence_team | top5 | 0.3948 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| B_presence_team | top10 | 0.5698 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| B_presence_team | log_loss | 3.5249 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| A_presence | top1 | 0.1250 | -0.0166 | -0.0240 | -0.0087 | worse |
-| A_presence | top5 | 0.3738 | -0.0209 | -0.0311 | -0.0103 | worse |
-| A_presence | top10 | 0.5520 | -0.0177 | -0.0288 | -0.0067 | worse |
-| A_presence | log_loss | 3.5812 | 0.0563 | 0.0388 | 0.0737 | worse |
-| model | top1 | 0.2654 | 0.1238 | 0.1108 | 0.1382 | better |
-| model | top5 | 0.6451 | 0.2503 | 0.2360 | 0.2651 | better |
-| model | top10 | 0.8270 | 0.2573 | 0.2422 | 0.2728 | better |
-| model | log_loss | 2.5847 | -0.9402 | -0.9722 | -0.9093 | better |
+| B_presence_team | top1 | 0.1403 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| B_presence_team | top5 | 0.3933 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| B_presence_team | top10 | 0.5658 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| B_presence_team | log_loss | 3.5427 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| A_presence | top1 | 0.1252 | -0.0151 | -0.0235 | -0.0062 | worse |
+| A_presence | top5 | 0.3711 | -0.0221 | -0.0333 | -0.0115 | worse |
+| A_presence | top10 | 0.5466 | -0.0191 | -0.0321 | -0.0071 | worse |
+| A_presence | log_loss | 3.6044 | 0.0617 | 0.0444 | 0.0791 | worse |
+| model | top1 | 0.2738 | 0.1336 | 0.1194 | 0.1494 | better |
+| model | top5 | 0.6426 | 0.2493 | 0.2312 | 0.2678 | better |
+| model | top10 | 0.8242 | 0.2584 | 0.2430 | 0.2733 | better |
+| model | log_loss | 2.5960 | -0.9466 | -0.9827 | -0.9114 | better |
 
 | group | slice | top1 | top5 | top10 | log_loss | n_actions | n_games | n_series |
 |---|---|---|---|---|---|---|---|---|
-| overall | all | 0.2654 | 0.6451 | 0.8270 | 2.5847 | 3440 | 172 | 66 |
-| action_type | ban | 0.2605 | 0.6488 | 0.8203 | 2.6014 | 1720 | 172 | 66 |
-| action_type | pick | 0.2703 | 0.6413 | 0.8337 | 2.5680 | 1720 | 172 | 66 |
-| phase | ban1 | 0.3033 | 0.7045 | 0.8372 | 2.4394 | 1032 | 172 | 66 |
-| phase | pick1 | 0.3130 | 0.6541 | 0.8343 | 2.4912 | 1032 | 172 | 66 |
-| phase | ban2 | 0.1962 | 0.5654 | 0.7951 | 2.8445 | 688 | 172 | 66 |
-| phase | pick2 | 0.2064 | 0.6221 | 0.8328 | 2.6832 | 688 | 172 | 66 |
+| overall | all | 0.2738 | 0.6426 | 0.8242 | 2.5960 | 2980 | 149 | 59 |
+| action_type | ban | 0.2651 | 0.6443 | 0.8141 | 2.6340 | 1490 | 149 | 59 |
+| action_type | pick | 0.2826 | 0.6409 | 0.8342 | 2.5580 | 1490 | 149 | 59 |
+| phase | ban1 | 0.3098 | 0.6935 | 0.8445 | 2.4774 | 894 | 149 | 59 |
+| phase | pick1 | 0.3244 | 0.6566 | 0.8389 | 2.4763 | 894 | 149 | 59 |
+| phase | ban2 | 0.1980 | 0.5705 | 0.7685 | 2.8689 | 596 | 149 | 59 |
+| phase | pick2 | 0.2198 | 0.6174 | 0.8272 | 2.6807 | 596 | 149 | 59 |
 
 ## 2. Win probability model (validation: 651 games / 240 series)
 
@@ -294,8 +294,8 @@ Target: P(blue side wins). Rows are (game, draft checkpoint k): k=0 before the d
 
 - **baseline1_elo**: Elo difference only. **baseline2_elo_side_fp**: Elo + side + first pick (the reference).
 - **lr_pregame_only**: logistic regression on all pre-game features (Elo, first pick, games played, series score).
-- **lr_full**: logistic regression on pre-game + draft features (L2 strength C=0.1, chosen on the tune period; Elo and first pick are left unpenalised).
-- **gbm_full**: LightGBM on the same features (4 leaves, 297 rounds by early stopping on tune).
+- **lr_full**: logistic regression on pre-game + draft features (L2 strength C=1.0, chosen on the tune period; Elo and first pick are left unpenalised).
+- **gbm_full**: LightGBM on the same features (4 leaves, 251 rounds by early stopping on tune).
 
 Draft features: `meta_win_resid_sum_diff`, `meta_win_resid_patch_sum_diff`, `meta_presence_sum_diff`, `team_comfort_sum_diff`, `player_mastery_sum_diff`, `player_win_resid_sum_diff`, `pair_syn_sum_diff`, `pair_ctr_sum`
 
@@ -304,20 +304,20 @@ Draft features: `meta_win_resid_sum_diff`, `meta_win_resid_patch_sum_diff`, `met
 | k | model | log_loss | baseline2 | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|---|
 | 0 | lr_pregame_only | 0.6420 | 0.6415 | 0.0004 | -0.0019 | 0.0028 | tie |
-| 0 | lr_full | 0.6402 | 0.6415 | -0.0013 | -0.0041 | 0.0013 | tie |
-| 0 | gbm_full | 0.6328 | 0.6415 | -0.0087 | -0.0165 | -0.0015 | better |
+| 0 | lr_full | 0.6407 | 0.6415 | -0.0008 | -0.0034 | 0.0016 | tie |
+| 0 | gbm_full | 0.6333 | 0.6415 | -0.0082 | -0.0162 | -0.0008 | better |
 | 6 | lr_pregame_only | 0.6420 | 0.6415 | 0.0004 | -0.0019 | 0.0028 | tie |
-| 6 | lr_full | 0.6402 | 0.6415 | -0.0013 | -0.0041 | 0.0013 | tie |
-| 6 | gbm_full | 0.6328 | 0.6415 | -0.0087 | -0.0165 | -0.0015 | better |
+| 6 | lr_full | 0.6407 | 0.6415 | -0.0008 | -0.0034 | 0.0016 | tie |
+| 6 | gbm_full | 0.6333 | 0.6415 | -0.0082 | -0.0162 | -0.0008 | better |
 | 12 | lr_pregame_only | 0.6420 | 0.6415 | 0.0004 | -0.0019 | 0.0028 | tie |
-| 12 | lr_full | 0.6360 | 0.6415 | -0.0055 | -0.0115 | 0.0003 | tie |
-| 12 | gbm_full | 0.6283 | 0.6415 | -0.0133 | -0.0217 | -0.0047 | better |
+| 12 | lr_full | 0.6364 | 0.6415 | -0.0051 | -0.0109 | 0.0008 | tie |
+| 12 | gbm_full | 0.6295 | 0.6415 | -0.0121 | -0.0207 | -0.0033 | better |
 | 16 | lr_pregame_only | 0.6420 | 0.6415 | 0.0004 | -0.0019 | 0.0028 | tie |
-| 16 | lr_full | 0.6360 | 0.6415 | -0.0055 | -0.0115 | 0.0003 | tie |
-| 16 | gbm_full | 0.6283 | 0.6415 | -0.0133 | -0.0217 | -0.0047 | better |
+| 16 | lr_full | 0.6364 | 0.6415 | -0.0051 | -0.0109 | 0.0008 | tie |
+| 16 | gbm_full | 0.6295 | 0.6415 | -0.0121 | -0.0207 | -0.0033 | better |
 | 20 | lr_pregame_only | 0.6420 | 0.6415 | 0.0004 | -0.0019 | 0.0028 | tie |
-| 20 | lr_full | 0.6370 | 0.6415 | -0.0045 | -0.0133 | 0.0045 | tie |
-| 20 | gbm_full | 0.6294 | 0.6415 | -0.0121 | -0.0212 | -0.0030 | better |
+| 20 | lr_full | 0.6369 | 0.6415 | -0.0046 | -0.0133 | 0.0043 | tie |
+| 20 | gbm_full | 0.6307 | 0.6415 | -0.0108 | -0.0198 | -0.0021 | better |
 
 All metrics after the full draft (k=20):
 
@@ -326,8 +326,8 @@ All metrics after the full draft (k=20):
 | baseline1_elo | 0.6456 | 0.2267 | 0.6052 | 651 | 240 |
 | baseline2_elo_side_fp | 0.6415 | 0.2246 | 0.6329 | 651 | 240 |
 | lr_pregame_only | 0.6420 | 0.2248 | 0.6283 | 651 | 240 |
-| lr_full | 0.6370 | 0.2228 | 0.6344 | 651 | 240 |
-| gbm_full | 0.6294 | 0.2201 | 0.6298 | 651 | 240 |
+| lr_full | 0.6369 | 0.2229 | 0.6406 | 651 | 240 |
+| gbm_full | 0.6307 | 0.2207 | 0.6190 | 651 | 240 |
 
 | model | metric | value | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|
@@ -340,12 +340,12 @@ All metrics after the full draft (k=20):
 | lr_pregame_only | log_loss | 0.6420 | 0.0004 | -0.0019 | 0.0028 | tie |
 | lr_pregame_only | brier | 0.2248 | 0.0002 | -0.0009 | 0.0012 | tie |
 | lr_pregame_only | accuracy | 0.6283 | -0.0046 | -0.0156 | 0.0061 | tie |
-| lr_full | log_loss | 0.6370 | -0.0045 | -0.0133 | 0.0045 | tie |
-| lr_full | brier | 0.2228 | -0.0018 | -0.0058 | 0.0019 | tie |
-| lr_full | accuracy | 0.6344 | 0.0015 | -0.0249 | 0.0257 | tie |
-| gbm_full | log_loss | 0.6294 | -0.0121 | -0.0212 | -0.0030 | better |
-| gbm_full | brier | 0.2201 | -0.0046 | -0.0079 | -0.0012 | better |
-| gbm_full | accuracy | 0.6298 | -0.0031 | -0.0204 | 0.0141 | tie |
+| lr_full | log_loss | 0.6369 | -0.0046 | -0.0133 | 0.0043 | tie |
+| lr_full | brier | 0.2229 | -0.0017 | -0.0056 | 0.0021 | tie |
+| lr_full | accuracy | 0.6406 | 0.0077 | -0.0173 | 0.0309 | tie |
+| gbm_full | log_loss | 0.6307 | -0.0108 | -0.0198 | -0.0021 | better |
+| gbm_full | brier | 0.2207 | -0.0039 | -0.0072 | -0.0006 | better |
+| gbm_full | accuracy | 0.6190 | -0.0138 | -0.0330 | 0.0047 | tie |
 
 ### 2.2 Does knowing the draft improve the prediction?
 
@@ -353,45 +353,45 @@ The cleanest test: the same model's prediction after the full draft (k=20) vs be
 
 | model | metric | after_draft | before_draft | diff | ci_low | ci_high | significant |
 |---|---|---|---|---|---|---|---|
-| lr_full | log_loss | 0.6370 | 0.6402 | -0.0032 | -0.0124 | 0.0058 | False |
-| lr_full | brier | 0.2228 | 0.2243 | -0.0015 | -0.0053 | 0.0023 | False |
-| gbm_full | log_loss | 0.6294 | 0.6328 | -0.0034 | -0.0086 | 0.0018 | False |
-| gbm_full | brier | 0.2201 | 0.2217 | -0.0016 | -0.0039 | 0.0007 | False |
+| lr_full | log_loss | 0.6369 | 0.6407 | -0.0038 | -0.0122 | 0.0046 | False |
+| lr_full | brier | 0.2229 | 0.2244 | -0.0015 | -0.0052 | 0.0021 | False |
+| gbm_full | log_loss | 0.6307 | 0.6333 | -0.0026 | -0.0074 | 0.0020 | False |
+| gbm_full | brier | 0.2207 | 0.2219 | -0.0011 | -0.0033 | 0.0009 | False |
 
-Size of the reported draft effect (lr_full minus baseline 2, after the full draft): mean absolute 0.043, 90th percentile 0.091, max 0.167 (probability points x100 = percentage points).
+Size of the reported draft effect (lr_full minus baseline 2, after the full draft): mean absolute 0.041, 90th percentile 0.087, max 0.171 (probability points x100 = percentage points).
 
 ### 2.3 LightGBM vs logistic regression
 
 | k | gbm_full | lr_full | diff | ci_low | ci_high | significant |
 |---|---|---|---|---|---|---|
-| 0 | 0.6328 | 0.6402 | -0.0074 | -0.0140 | -0.0009 | True |
-| 20 | 0.6294 | 0.6370 | -0.0076 | -0.0163 | 0.0008 | False |
+| 0 | 0.6333 | 0.6407 | -0.0073 | -0.0144 | -0.0007 | True |
+| 20 | 0.6307 | 0.6369 | -0.0062 | -0.0152 | 0.0023 | False |
 
 ### 2.4 Ablation of draft feature groups (lr_full, k=20) and coefficients
 
 | removed_draft_group | without | full | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|
-| champion meta strength | 0.6381 | 0.6370 | 0.0011 | -0.0008 | 0.0029 | tie |
-| player comfort | 0.6366 | 0.6370 | -0.0004 | -0.0058 | 0.0049 | tie |
-| synergy/counter | 0.6388 | 0.6370 | 0.0018 | -0.0017 | 0.0056 | tie |
-| team tendency | 0.6368 | 0.6370 | -0.0002 | -0.0028 | 0.0024 | tie |
+| champion meta strength | 0.6380 | 0.6369 | 0.0011 | -0.0007 | 0.0029 | tie |
+| player comfort | 0.6366 | 0.6369 | -0.0004 | -0.0045 | 0.0040 | tie |
+| synergy/counter | 0.6386 | 0.6369 | 0.0017 | -0.0019 | 0.0055 | tie |
+| team tendency | 0.6372 | 0.6369 | 0.0003 | -0.0016 | 0.0021 | tie |
 
 Standardised coefficients of lr_full (change in log-odds of a blue win per 1 SD):
 
 | feature | coef_per_sd | group |
 |---|---|---|
-| elo_diff | 0.7391 | team strength |
-| player_mastery_sum_diff | 0.1351 | player comfort |
-| team_comfort_sum_diff | -0.0867 | team tendency |
-| meta_win_resid_sum_diff | 0.0511 | champion meta strength |
-| ctx_blue_first_pick | 0.0474 | draft context |
-| series_wins_diff | 0.0473 | series context |
-| pair_syn_sum_diff | 0.0436 | synergy/counter |
-| pair_ctr_sum | 0.0424 | synergy/counter |
-| elo_games_min | 0.0406 | team strength |
-| player_win_resid_sum_diff | 0.0284 | player comfort |
-| meta_win_resid_patch_sum_diff | -0.0233 | champion meta strength |
-| meta_presence_sum_diff | -0.0190 | champion meta strength |
+| elo_diff | 0.7527 | team strength |
+| player_mastery_sum_diff | 0.0986 | player comfort |
+| team_comfort_sum_diff | -0.0652 | team tendency |
+| meta_win_resid_sum_diff | 0.0500 | champion meta strength |
+| ctx_blue_first_pick | 0.0481 | draft context |
+| series_wins_diff | 0.0464 | series context |
+| pair_syn_sum_diff | 0.0444 | synergy/counter |
+| pair_ctr_sum | 0.0432 | synergy/counter |
+| elo_games_min | 0.0401 | team strength |
+| player_win_resid_sum_diff | 0.0380 | player comfort |
+| meta_win_resid_patch_sum_diff | -0.0240 | champion meta strength |
+| meta_presence_sum_diff | -0.0179 | champion meta strength |
 
 ### 2.5 Calibration (k=20)
 
@@ -409,36 +409,36 @@ Standardised coefficients of lr_full (change in log-odds of a blue win per 1 SD)
 | baseline2_elo_side_fp | 0.7000 | 0.8000 | 105 | 0.7512 | 0.7524 |
 | baseline2_elo_side_fp | 0.8000 | 0.9000 | 50 | 0.8324 | 0.7600 |
 | baseline2_elo_side_fp | 0.9000 | 1.0000 | 19 | 0.9224 | 0.8421 |
-| lr_full | 0.0000 | 0.1000 | 8 | 0.0777 | 0.1250 |
-| lr_full | 0.1000 | 0.2000 | 23 | 0.1613 | 0.2609 |
-| lr_full | 0.2000 | 0.3000 | 45 | 0.2559 | 0.4000 |
-| lr_full | 0.3000 | 0.4000 | 68 | 0.3575 | 0.3824 |
-| lr_full | 0.4000 | 0.5000 | 93 | 0.4539 | 0.5376 |
-| lr_full | 0.5000 | 0.6000 | 119 | 0.5465 | 0.5714 |
-| lr_full | 0.6000 | 0.7000 | 88 | 0.6504 | 0.5909 |
-| lr_full | 0.7000 | 0.8000 | 115 | 0.7492 | 0.7130 |
-| lr_full | 0.8000 | 0.9000 | 64 | 0.8485 | 0.7969 |
-| lr_full | 0.9000 | 1.0000 | 28 | 0.9276 | 0.8571 |
+| lr_full | 0.0000 | 0.1000 | 7 | 0.0792 | 0.1429 |
+| lr_full | 0.1000 | 0.2000 | 21 | 0.1570 | 0.2857 |
+| lr_full | 0.2000 | 0.3000 | 45 | 0.2546 | 0.3333 |
+| lr_full | 0.3000 | 0.4000 | 63 | 0.3560 | 0.4286 |
+| lr_full | 0.4000 | 0.5000 | 101 | 0.4521 | 0.4950 |
+| lr_full | 0.5000 | 0.6000 | 118 | 0.5480 | 0.6017 |
+| lr_full | 0.6000 | 0.7000 | 97 | 0.6505 | 0.5670 |
+| lr_full | 0.7000 | 0.8000 | 111 | 0.7507 | 0.7207 |
+| lr_full | 0.8000 | 0.9000 | 63 | 0.8482 | 0.8254 |
+| lr_full | 0.9000 | 1.0000 | 25 | 0.9264 | 0.8400 |
 
-### 2.6 Test split, scored once (172 games / 66 series; Worlds 2026 and later)
+### 2.6 Test split, scored once (149 games / 59 series; Worlds 2026 and later)
 
 | model | log_loss | brier | accuracy | n_games | n_series |
 |---|---|---|---|---|---|
-| baseline1_elo | 0.6726 | 0.2401 | 0.6105 | 172 | 66 |
-| baseline2_elo_side_fp | 0.6639 | 0.2357 | 0.6105 | 172 | 66 |
-| lr_pregame_only | 0.6626 | 0.2351 | 0.6047 | 172 | 66 |
-| lr_full | 0.6776 | 0.2413 | 0.5988 | 172 | 66 |
-| gbm_full | 0.6749 | 0.2406 | 0.5930 | 172 | 66 |
+| baseline1_elo | 0.6683 | 0.2381 | 0.6242 | 149 | 59 |
+| baseline2_elo_side_fp | 0.6624 | 0.2351 | 0.6107 | 149 | 59 |
+| lr_pregame_only | 0.6579 | 0.2330 | 0.6174 | 149 | 59 |
+| lr_full | 0.6749 | 0.2410 | 0.5839 | 149 | 59 |
+| gbm_full | 0.6756 | 0.2409 | 0.6174 | 149 | 59 |
 
 | model | metric | value | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|
-| baseline1_elo | log_loss | 0.6726 | 0.0087 | -0.0019 | 0.0197 | tie |
-| baseline1_elo | brier | 0.2401 | 0.0044 | -0.0005 | 0.0095 | tie |
-| baseline2_elo_side_fp | log_loss | 0.6639 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| baseline2_elo_side_fp | brier | 0.2357 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| lr_pregame_only | log_loss | 0.6626 | -0.0014 | -0.0062 | 0.0034 | tie |
-| lr_pregame_only | brier | 0.2351 | -0.0006 | -0.0029 | 0.0016 | tie |
-| lr_full | log_loss | 0.6776 | 0.0136 | -0.0051 | 0.0327 | tie |
-| lr_full | brier | 0.2413 | 0.0056 | -0.0029 | 0.0141 | tie |
-| gbm_full | log_loss | 0.6749 | 0.0110 | -0.0035 | 0.0255 | tie |
-| gbm_full | brier | 0.2406 | 0.0049 | -0.0015 | 0.0113 | tie |
+| baseline1_elo | log_loss | 0.6683 | 0.0059 | -0.0057 | 0.0171 | tie |
+| baseline1_elo | brier | 0.2381 | 0.0030 | -0.0024 | 0.0081 | tie |
+| baseline2_elo_side_fp | log_loss | 0.6624 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| baseline2_elo_side_fp | brier | 0.2351 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| lr_pregame_only | log_loss | 0.6579 | -0.0045 | -0.0086 | -0.0009 | better |
+| lr_pregame_only | brier | 0.2330 | -0.0021 | -0.0039 | -0.0005 | better |
+| lr_full | log_loss | 0.6749 | 0.0124 | -0.0041 | 0.0304 | tie |
+| lr_full | brier | 0.2410 | 0.0058 | -0.0014 | 0.0136 | tie |
+| gbm_full | log_loss | 0.6756 | 0.0132 | -0.0004 | 0.0276 | tie |
+| gbm_full | brier | 0.2409 | 0.0058 | -0.0001 | 0.0122 | tie |

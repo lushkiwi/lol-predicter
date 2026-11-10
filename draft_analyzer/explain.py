@@ -29,7 +29,8 @@ def _group_indices(names: list[str]) -> dict[str, list[int]]:
 
 
 def explain_next_action(model, X: np.ndarray, cand_ids: np.ndarray, champion_names: list[str], action_type: str,
-                        top_k: int = 10, top_groups: int = 4, features_per_group: int = 4) -> dict:
+                        top_k: int = 10, top_groups: int = 4, features_per_group: int = 4,
+                        all_probs: bool = False) -> dict:
     """Explain the top-k candidates of one action.
 
     ``X`` is the (n_available, F) feature matrix in ``model.features`` order and ``cand_ids``
@@ -64,8 +65,12 @@ def explain_next_action(model, X: np.ndarray, cand_ids: np.ndarray, champion_nam
             })
         out.append({"rank": rank, "champion": champion_names[int(cand_ids[i])], "probability": round(float(p[i]), 4),
                     "top_factors": factors})
-    return {"action_type": action_type, "n_candidates": int(len(cand_ids)), "units": "log-odds (softmax logit)",
-            "candidates": out}
+    res = {"action_type": action_type, "n_candidates": int(len(cand_ids)), "units": "log-odds (softmax logit)",
+           "candidates": out}
+    if all_probs:  # every available champion, most likely first
+        res["probabilities"] = [{"champion": champion_names[int(cand_ids[i])], "probability": round(float(p[i]), 5)}
+                                for i in np.argsort(-p)]
+    return res
 
 
 def explain_win(win_model, baseline_model, x: dict, top_groups: int = 5, features_per_group: int = 4) -> dict:

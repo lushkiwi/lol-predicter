@@ -37,7 +37,6 @@ Team rows carry `firstPick`, `ban1..5` and `pick1..5` (each team's own order). C
 | 2026 | LTA S | 28 | 7 | 1.000 | 1.000 | 1.000 | 0.000 | 2025-09-30 | 2025-10-08 |
 | 2026 | MSI | 71 | 20 | 1.000 | 1.000 | 1.000 | 0.451 | 2026-06-28 | 2026-07-12 |
 | 2026 | WLDs | 106 | 48 | 1.000 | 1.000 | 1.000 | 0.689 | 2026-09-17 | 2026-11-09 |
-| 2027 | LCS | 23 | 7 | 1.000 | 1.000 | 1.000 | 0.783 | 2026-10-05 | 2026-10-13 |
 
 Totals per season file:
 
@@ -46,9 +45,8 @@ Totals per season file:
 | 2024 | 1914 | 857 | 0.000 |
 | 2025 | 2608 | 1053 | 0.000 |
 | 2026 | 2627 | 1015 | 0.609 |
-| 2027 | 23 | 7 | 0.783 |
 
-**Total: 7172 games, 2932 series, 143440 draft actions (40 of them missed bans).**
+**Total: 7149 games, 2925 series, 142980 draft actions (40 of them missed bans).**
 
 ## First Selection (2026): share of games where red had first pick
 
@@ -58,13 +56,13 @@ Totals per season file:
 | FST | 45 | 0.778 | 0.667 |
 | LCK | 502 | 0.739 | 0.564 |
 | LCP | 283 | 0.544 | 0.551 |
-| LCS | 283 | 0.661 | 0.572 |
+| LCS | 260 | 0.650 | 0.554 |
 | LEC | 383 | 0.436 | 0.569 |
 | LPL | 674 | 0.714 | 0.519 |
 | MSI | 71 | 0.451 | 0.662 |
 | WLDs | 106 | 0.689 | 0.566 |
 
-Overall from 2026-01-14: red had first pick in **62.8%** of 2579 games (0% in every earlier game). Blue side won 55.3%; the first-pick team won 49.6%.
+Overall from 2026-01-14: red had first pick in **62.6%** of 2556 games (0% in every earlier game). Blue side won 55.1%; the first-pick team won 49.8%.
 
 ## Fearless detection (empirical, per league / season / split / stage)
 
@@ -112,7 +110,6 @@ Overall from 2026-01-14: red had first pick in **62.8%** of 2579 games (0% in ev
 | LCS | 2026 | Spring | 1 | 42 | 0.000 | 0.000 | hard |
 | LCS | 2026 | Summer | 0 | 72 | 0.000 | 0.000 | hard |
 | LCS | 2026 | Summer | 1 | 58 | 0.000 | 0.000 | hard |
-| LCS | 2027 |  | 0 | 32 | 0.000 | 0.000 | hard |
 | LEC | 2024 | Finals | 1 | 48 | 0.958 | 0.604 | none |
 | LEC | 2024 | Spring | 1 | 56 | 0.875 | 0.536 | none |
 | LEC | 2024 | Summer | 1 | 56 | 0.875 | 0.643 | none |
@@ -163,7 +160,7 @@ Overall from 2026-01-14: red had first pick in **62.8%** of 2579 games (0% in ev
 | WLDs | 2025 |  | 0 | 104 | 0.000 | 0.000 | hard |
 | WLDs | 2026 |  | 0 | 116 | 0.000 | 0.000 | hard |
 
-Games per detected mode: {"hard": 5147, "none": 1589, "na": 306, "soft": 130}
+Games per detected mode: {"hard": 5124, "none": 1589, "na": 306, "soft": 130}
 
 ## Irregular drafts and missing data
 
@@ -179,3 +176,20 @@ Games per detected mode: {"hard": 5147, "none": 1589, "na": 306, "soft": 130}
 - 3 games belong to series whose game 1 is absent from OE (`series_incomplete`); their Fearless-burned lists are incomplete.
 - 49 games list both teams' picks exactly in role order (`picks_in_role_order`). 12 were checked against Leaguepedia: 10 are genuine, 2 (LEC 2026) are OE entries that lost the draft order. Left as is and flagged.
 - No game was dropped. Every game has exactly two team rows and ten player rows, one winner, and a first-pick flag on exactly one team.
+
+## History-only games
+
+7431 games from lower-tier and predecessor leagues (`config.HISTORY_LEAGUES`) and from out-of-scope events of the main leagues (`config.OUT_OF_SCOPE_EVENTS`: the "LCS 2027" promotion tournament between amateur teams). They are never predicted, trained on or scored, and are not in the tables above. Once finished, they update the as-of statistics of these blocks: player. 392 of the 629 players in the in-scope games also appear in them. Games without a known draft order still count for blocks that do not need it (player, Elo). The choice of leagues and blocks is compared in `reports/history_leagues.md`.
+
+| league | games | draft_order_known | first | last |
+|---|---|---|---|---|
+| CBLOL | 562 | 1.000 | 2024-01-20 | 2026-10-12 |
+| EM | 1362 | 1.000 | 2024-04-15 | 2026-10-22 |
+| LCKC | 1544 | 1.000 | 2024-01-15 | 2026-09-15 |
+| LCS 2027 (out-of-scope event) | 23 | 1.000 | 2026-10-05 | 2026-10-13 |
+| LDL | 565 | 0.000 | 2024-01-27 | 2024-06-05 |
+| LJL | 885 | 1.000 | 2024-01-20 | 2026-09-06 |
+| LLA | 213 | 1.000 | 2024-01-16 | 2024-08-24 |
+| NACL | 1044 | 1.000 | 2024-01-21 | 2026-09-11 |
+| PCS | 685 | 1.000 | 2024-01-19 | 2026-09-06 |
+| VCS | 548 | 1.000 | 2024-01-20 | 2026-10-11 |

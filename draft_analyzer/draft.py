@@ -196,7 +196,7 @@ def detect_fearless(games: pd.DataFrame, group_cols: Iterable[str]) -> tuple[pd.
     ]
     mode = games[group_cols].merge(summary[group_cols + ["fearless"]], on=group_cols, how="left")["fearless"]
     mode.index = games.index
-    return mode.fillna("na"), summary
+    return mode.astype(object).fillna("na"), summary
 
 
 def burned_for_team(mode: str, prev_own: Sequence[str], prev_opp: Sequence[str]) -> list[str]:

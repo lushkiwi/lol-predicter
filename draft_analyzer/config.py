@@ -25,6 +25,7 @@ DDRAGON_DIR = DATA_RAW / "ddragon"
 
 GAMES_PATH = DATA_PROCESSED / "games.parquet"
 ACTIONS_PATH = DATA_PROCESSED / "draft_actions.parquet"
+HISTORY_GAMES_PATH = DATA_PROCESSED / "history_games.parquet"
 CHAMPIONS_PATH = DATA_PROCESSED / "champions.parquet"
 
 
@@ -45,6 +46,22 @@ LEAGUES: tuple[str, ...] = _env_list(
     "DRAFT_LEAGUES",
     ("LCK", "LPL", "LEC", "LCS", "LTA", "LTA N", "LTA S", "LCP") + INTERNATIONAL_LEAGUES,
 )
+
+# Events inside LEAGUES that are out of scope, as (league, OE season). "LCS 2027" is the
+# October 2026 promotion tournament between amateur teams. These games are history only.
+OUT_OF_SCOPE_EVENTS: tuple[tuple[str, int], ...] = (("LCS", 2027),)
+
+# History-only leagues: their finished games update the as-of statistics of HISTORY_BLOCKS
+# (so players and teams arriving from them have a track record) but they are never predicted,
+# trained on or scored. "*" means every other league in the Oracle's Elixir files.
+# Compared on validation in reports/history_leagues.md: no choice beats using no history; feeding
+# player statistics only is a clean tie and is the default. Elo is left out on purpose: each
+# league is its own rating pool, so lower-tier ratings are not comparable across leagues.
+TIER2_LEAGUES: tuple[str, ...] = ("LCKC", "LDL", "NACL", "EM")
+# Leagues the 2025 LCP and LTA South teams played in before (and, for some, after) those leagues existed.
+PREDECESSOR_LEAGUES: tuple[str, ...] = ("PCS", "VCS", "LJL", "CBLOL", "LLA")
+HISTORY_LEAGUES: tuple[str, ...] = _env_list("DRAFT_HISTORY_LEAGUES", TIER2_LEAGUES + PREDECESSOR_LEAGUES)
+HISTORY_BLOCKS: tuple[str, ...] = _env_list("DRAFT_HISTORY_BLOCKS", ("player",))
 
 # Google Drive file ids of the yearly Oracle's Elixir CSVs (folder 1gLSw0RLjBbtaNy0dgnGQDAZOHIgCe-HH).
 OE_FILE_IDS: dict[int, str] = {

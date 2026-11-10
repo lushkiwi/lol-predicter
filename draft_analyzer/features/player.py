@@ -17,6 +17,7 @@ class PlayerMasteryBlock(StatBlock):
 
     name = "player"
     prefix = "player_"
+    needs_draft = False
 
     def __init__(self, champs: ChampionIndex, half_life: float = 180.0, share_prior: float = 5.0,
                  resid_prior: float = 8.0, pool_min_games: float = 3.0):

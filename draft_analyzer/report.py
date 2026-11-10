@@ -72,6 +72,27 @@ def m1() -> None:
             "that lost the draft order. Left as is and flagged.",
             "- No game was dropped. Every game has exactly two team rows and ten player rows, one winner, and a "
             "first-pick flag on exactly one team.\n"]
+    from .ingest.oracles_elixir import load_history
+
+    h = load_history()
+    if len(h):
+        players = {p for col in ("blue_players", "red_players") for ps in g[col] for p in ps if p is not None}
+        hist_players = {p for col in ("blue_players", "red_players") for ps in h[col] for p in ps if p is not None}
+        promo = h["league"].isin(config.LEAGUES)
+        by = (h.assign(league=np.where(promo, h["league"] + " " + h["oe_year"].astype(str) + " (out-of-scope event)", h["league"]),
+                       draft_order=h["first_pick_side"].notna() & h["patch"].notna())
+              .groupby("league").agg(games=("game_id", "size"), draft_order_known=("draft_order", "mean"),
+                                     first=("datetime", "min"), last=("datetime", "max")).reset_index())
+        by["first"], by["last"] = by["first"].astype(str).str[:10], by["last"].astype(str).str[:10]
+        out += ["## History-only games\n",
+                f"{len(h)} games from lower-tier and predecessor leagues (`config.HISTORY_LEAGUES`) and from out-of-scope "
+                "events of the main leagues (`config.OUT_OF_SCOPE_EVENTS`: the \"LCS 2027\" promotion tournament between "
+                "amateur teams). They are never predicted, trained on or scored, and are not in the tables above. Once "
+                f"finished, they update the as-of statistics of these blocks: {', '.join(config.HISTORY_BLOCKS)}. "
+                f"{len(players & hist_players)} of the {len(players)} players in the in-scope games also appear in them. "
+                "Games without a known draft order still count for blocks that do not need it (player, Elo). "
+                "The choice of leagues and blocks is compared in `reports/history_leagues.md`.\n",
+                md(by, ".3f"), ""]
     (config.REPORTS / "M1_ingestion.md").write_text("\n".join(out))
     print("\n".join(out))
 

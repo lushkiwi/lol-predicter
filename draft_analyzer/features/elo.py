@@ -21,6 +21,7 @@ class EloBlock(StatBlock):
 
     name = "elo"
     prefix = "elo_"
+    needs_draft = False
 
     def __init__(self, k: float = 28.0, regress: float = 0.0, regress_season: float = 0.35, init: float = 1500.0):
         self.k, self.regress, self.regress_season, self.init = k, regress, regress_season, init

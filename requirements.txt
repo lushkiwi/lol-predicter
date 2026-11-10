@@ -10,3 +10,6 @@ requests
 python-dotenv
 matplotlib
 pytest
+fastapi
+uvicorn
+httpx

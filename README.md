@@ -12,10 +12,10 @@ Phases 1 to 3 of `lol-tool.md` are built (pro data only, no Riot API, no LLM). R
 | Validation (651 games, 240 series) | Top-1 | Top-5 | Top-10 | Log loss |
 |---|---|---|---|---|
 | Baseline: patch presence + team frequency | 12.0% | 39.6% | 58.1% | 3.528 |
-| Next-action model | 27.1% | 66.3% | 83.1% | 2.566 |
+| Next-action model | 27.5% | 66.2% | 83.2% | 2.558 |
 
-The win model is a tie with the Elo + side + first-pick baseline (log loss 0.6370 vs 0.6415); the draft effect it
-reports is not statistically supported.
+The win model is a tie with the Elo + side + first-pick baseline (log loss 0.6369 vs 0.6415); the draft effect it
+reports is not statistically supported, and the CLI and web UI label it that way.
 
 ## Setup
 
@@ -39,20 +39,36 @@ Every network response is cached on disk and never re-downloaded.
 .venv/bin/python -m draft_analyzer.report m1               # reports/M1_ingestion.md
 
 # 2. Features and baselines
-.venv/bin/python -m draft_analyzer.experiments build       # ~45 s, writes ~5 GB to data/processed/features
+.venv/bin/python -m draft_analyzer.experiments build       # ~1 min, writes ~5 GB to data/processed/features
 .venv/bin/python -m draft_analyzer.experiments m2          # reports/M2_baselines.md
 
 # 3. Models
-.venv/bin/python -m draft_analyzer.experiments m3          # ~25 min: regimes, ablations, win model, live refit
+.venv/bin/python -m draft_analyzer.experiments m3          # ~30 min: regimes, ablations, win model, live refit
 .venv/bin/python -m draft_analyzer.report m3               # reports/M3_models.md
 
-.venv/bin/python -m pytest                                  # 101 tests
+.venv/bin/python -m draft_analyzer.experiments history     # optional, ~15 min: reports/history_leagues.md
+
+.venv/bin/python -m pytest                                  # 109 tests
 ```
 
 Leagues and seasons are set in `draft_analyzer/config.py`, or with `DRAFT_LEAGUES="LCK,LPL"` and
-`DRAFT_YEARS="2025,2026"`.
+`DRAFT_YEARS="2025,2026"`. History-only leagues (see below) are set with `DRAFT_HISTORY_LEAGUES` (`*` = every
+other league in the files) and `DRAFT_HISTORY_BLOCKS`.
 
-## Predicting
+## Web UI
+
+```bash
+.venv/bin/python -m draft_analyzer.web        # then open http://127.0.0.1:8000
+```
+
+Pick the two teams (rosters fill in from their latest game), who has first pick, and click each ban and pick as
+the real draft happens. After every click the page shows the model's probability for every available champion,
+the top candidates with their main factors, and a chess-style evaluation bar for win probability with a graph
+over the draft. When a game ends, record the winner and the next game of the series starts with the Fearless
+burns applied. The server runs on localhost only and keeps the models in memory (about 50 ms per prediction).
+Champion icons are fetched from Data Dragon once and cached in `data/raw/ddragon/img/`.
+
+## Predicting from the command line
 
 Replay a historical draft up to an action index (features are as-of that game):
 
@@ -85,11 +101,16 @@ names in draft order, `null` for a missed ban). Earlier games of the series come
 - **No leakage, by construction.** `features/asof.py` walks games in start-time order and applies a finished game
   to the statistics only once its end time is at or before the start of the game being featurised. Feature code
   receives pre-game facts and the actions so far, nothing else. Game 2 of a series sees game 1.
+- **History-only games.** Lower-tier and predecessor leagues (LCK CL, LDL, NACL, EMEA Masters, PCS, VCS, LJL,
+  CBLOL, LLA) and out-of-scope events (the "LCS 2027" amateur promotion tournament) go through the same engine
+  under the same end-time rule, but only update player statistics. They are never predicted, trained on or
+  scored. On validation this is a tie with using no history, and no variant tried beats it
+  (`reports/history_leagues.md`).
 - **Stat blocks** (`features/`): champion meta (patch presence shrunk toward a long-run prior, draft-position
   rates, win rate relative to Elo expectation), role distributions and open-role fit, team tendencies, player
   mastery, pairwise synergy and counters, Elo, and series context (Fearless burns, earlier bans, score).
 - **Next-action model** (`models/next_action.py`): LightGBM scoring each available champion, trained with a
-  listwise softmax objective so outputs are probabilities.
+  listwise softmax objective so outputs are probabilities. Trained on all games with a 365-day time decay.
 - **Win model** (`models/win.py`): logistic regression on Elo, side, first pick and draft features, trained on
   partial drafts so it works at any point.
 - **Evaluation** (`evaluate.py`): time-based splits by series; every comparison is a paired bootstrap over series
@@ -100,6 +121,7 @@ names in draft order, `null` for a missed ban). Earlier games of the series come
 ```
 draft_analyzer/
   config.py  draft.py  evaluate.py  explain.py  predict.py  experiments.py  report.py
+  web/       server.py  static/
   ingest/    oracles_elixir.py  leaguepedia.py  ddragon.py  join.py
   features/  asof.py  dataset.py  champion.py  team.py  player.py  pairwise.py  roles.py  context.py  elo.py
   models/    baselines.py  next_action.py  win.py
