@@ -1,0 +1,77 @@
+{{DataTabs|fl=KR/LCK|extra_purges=LCK/2026 Season}}
+{{TournamentGroups
+|groups=Group Baron,Group Elder
+|displays=Baron,Elder
+|Group Baron=GEN,T1,NS,DN SOOPers,BRION
+|Group Elder=HLE,DPLUS,KT,BNK FEARX,DRX
+}}
+
+== Week 1 ==
+{{SetPatch|patch=26.01 |disabled= |hotfix= |footnote=}}
+{{MatchSchedule/Start|tab=Week 1 |bestof=3 |shownname=LCK Cup 2026 }}
+{{MatchSchedule|bestof=3 |initialorder=1|team1=KT|team2=DN SOOPers |team1score=2 |team2score=1 |winner=1 |team1points=1 |team2points=0
+|date=2026-01-14 |time=00:00 |timezone=PST |dst=no |pbp= Valdes|color= Aux|vodinterview=https://youtu.be/vjJmKUsNOoY?list=PLFZGI6Zp1bXy_v6SpFc4-wQlD0_f-4uZQ&t=12933 |with=Bdd |mvp=Bdd |reddit=https://www.reddit.com/r/leagueoflegends/comments/1qcjy53/kt_rolster_vs_dn_soopers_lck_cup_2026_group/ |stream=https://www.twitch.tv/lck
+|game1={{MatchSchedule/Game
+|blue= DN SOOPers|red= KT|winner=1 |first_sel=KT |ssel=DN SOOPers |pick_sel=KT |first_pick= KT|ff=
+|riot_platform_game_id=LOLTMNT03_337058
+|vod=https://www.youtube.com/watch?v=x-9yO7FEeN4
+|vodpb=
+|vodstart=
+|vodpost=
+|vodhl=
+|vodinterview=
+|with=
+|mvp=
+}}
+|game2={{MatchSchedule/Game
+|blue=DN SOOPers |red=KT |winner=2 |first_sel=KT |ssel=DN SOOPers |pick_sel=KT |first_pick=KT |ff=
+|riot_platform_game_id=LOLTMNT03_337069
+|vod=https://www.youtube.com/watch?v=LIj8GQKfR_c
+|vodpb=
+|vodstart=
+|vodpost=
+|vodhl=
+|vodinterview=
+|with=
+|mvp=
+}}
+|game3={{MatchSchedule/Game
+|blue=KT |red=DN SOOPers |winner=1 |first_sel=DN SOOPers |ssel=KT |pick_sel=DN SOOPers |first_pick=DN SOOPers |ff=
+|riot_platform_game_id=LOLTMNT03_337081
+|vod=https://www.youtube.com/watch?v=9GLVh9SWUj0
+|vodpb=
+|vodstart=
+|vodpost=
+|vodhl=
+|vodinterview=
+|with=
+|mvp=
+}}
+}}
+{{MatchSchedule|bestof=3 |initialorder=2|team1=DPLUS |team2=BRION |team1score=2 |team2score=0 |winner=1 |team1points=1 |team2points=0
+|date=2026-01-14 |time=02:00 |timezone=PST |dst=no |pbp= Valdes|color= Aux|vodinterview=https://youtu.be/vjJmKUsNOoY?list=PLFZGI6Zp1bXy_v6SpFc4-wQlD0_f-4uZQ&t=20415 |with=ShowMaker |mvp=ShowMaker |reddit=https://www.reddit.com/r/leagueoflegends/comments/1qcm6uf/dplus_kia_vs_hanjin_brion_lck_cup_2026_group/ |stream=https://www.twitch.tv/lck
+|game1={{MatchSchedule/Game
+|blue=Dplus |red=BRION |winner=1 |first_sel=Dplus |ssel=Dplus |pick_sel=BRION |first_pick=BRION |ff=
+|riot_platform_game_id=LOLTMNT03_337109
+|vod=https://www.youtube.com/watch?v=4E5B7aZbhI4
+|vodpb=
+|vodstart=
+|vodpost=
+|vodhl=
+|vodinterview=
+|with=
+|mvp=
+}}
+|game2={{MatchSchedule/Game
+|blue=Dplus |red=BRION |winner=1 |first_sel=BRION |ssel=Dplus |pick_sel=BRION |first_pick=BRION |ff=
+|riot_platform_game_id=LOLTMNT03_336084
+|vod=https://www.youtube.com/watch?v=uA2iaTzdqHo
+|vodpb=
+|vodstart=
+|vodpost=
+|vodhl=
+|vodinterview=
+|with=
+|mvp=
+}}
+}}

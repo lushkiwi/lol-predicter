@@ -1,0 +1,13 @@
+feature,coef_per_sd
+elo_diff,0.7390971246950029
+player_mastery_sum_diff,0.13512746105855583
+team_comfort_sum_diff,-0.0867250381953348
+meta_win_resid_sum_diff,0.05107391915052569
+ctx_blue_first_pick,0.047433870525823534
+series_wins_diff,0.04730740083658154
+pair_syn_sum_diff,0.04363552731412803
+pair_ctr_sum,0.04238070353487022
+elo_games_min,0.04061124996611175
+player_win_resid_sum_diff,0.028359560403859015
+meta_win_resid_patch_sum_diff,-0.023291125627375512
+meta_presence_sum_diff,-0.019031837367721873

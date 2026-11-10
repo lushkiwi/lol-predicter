@@ -1,0 +1,99 @@
+{{Tabs:LCK 2026}}{{TOCFlat}}
+{{PicksAndBans/Button}}
+
+==Week 1==
+{{PicksAndBans/SectionButton|name=Week 1}}
+{{Box|start|padding=1em}}
+{{PicksAndBansS7|blueteam=KT Rolster|redteam=DN SOOPers|switched_sides=yes
+|team1score=0 |team2score=1 |winner=2
+|blueban1=Neeko     |red_ban1=Jayce
+|blueban2=Vi     |red_ban2=Azir
+|blueban3=Sylas     |red_ban3=Orianna
+|bluepick1=Malphite    |bluerole1=j
+						|red_pick1=Rumble     |red_role1=t
+						|red_pick2=Wukong     |red_role2=j
+|bluepick2=Yunara    |bluerole2=a
+|bluepick3=Taliyah    |bluerole3=m
+						|red_pick3=Ahri     |red_role3=m
+|blueban4=Rakan     |red_ban4=Ambessa
+|blueban5=Aphelios     |red_ban5=Nautilus
+						|red_pick4=Corki     |red_role4=a
+|bluepick4=Alistar    |bluerole4=s
+|bluepick5=K'Sante    |bluerole5=t
+						|red_pick5=Pantheon     |red_role5=s
+|game1=yes
+}} 
+{{PicksAndBansS7|blueteam=KT|redteam=DN SOOPers|switched_sides=yes
+|team1score=1 |team2score=1 |winner=1 
+|blueban1=Neeko     |red_ban1=Jayce
+|blueban2=Vi     |red_ban2=Azir
+|blueban3=Cassiopeia     |red_ban3=Orianna
+|bluepick1=Ryze    |bluerole1=m
+						|red_pick1=Ashe     |red_role1=a
+						|red_pick2=Dr. Mundo     |red_role2=j
+|bluepick2=Lucian    |bluerole2=a
+|bluepick3=Braum    |bluerole3=s
+						|red_pick3=Viktor     |red_role3=m
+|blueban4=RG     |red_ban4=Jarvan IV
+|blueban5=Lulu     |red_ban5=Nocturne
+						|red_pick4=Soraka     |red_role4=s
+|bluepick4=Renekton    |bluerole4=t
+|bluepick5=Sylas    |bluerole5=j
+						|red_pick5=Sion     |red_role5=t
+}} 
+{{PicksAndBansS7|blueteam=DN SOOPers|redteam=KT|switched_sides=yes
+|team1score=1 |team2score=2 |winner=2 
+|blueban1=Poppy     |red_ban1=Vi
+|blueban2=Jayce     |red_ban2=Neeko
+|blueban3=Azir     |red_ban3=Orianna
+|bluepick1=Ambessa    |bluerole1=t
+						|red_pick1=Aphelios     |red_role1=a
+						|red_pick2=Jarvan IV     |red_role2=j
+|bluepick2=Nocturne    |bluerole2=j
+|bluepick3=Ziggs    |bluerole3=a
+						|red_pick3=Thresh     |red_role3=s
+|blueban4=Akali     |red_ban4=Nautilus
+|blueban5=Mel     |red_ban5=Leona
+						|red_pick4=Rek'Sai     |red_role4=t
+|bluepick4=Aurora    |bluerole4=m
+|bluepick5=Rell    |bluerole5=s
+						|red_pick5=Zoe     |red_role5=m
+}} 
+{{Box|break|padding=1em}}
+{{PicksAndBansS7|blueteam=BRION|redteam=Dplus Kia|switched_sides=yes
+|team1score=0 |team2score=1 |winner=2 
+|blueban1=Qiyana     |red_ban1=Azir
+|blueban2=Malphite     |red_ban2=Jayce
+|blueban3=Rumble     |red_ban3=Orianna
+|bluepick1=Neeko    |bluerole1=s
+						|red_pick1=Jarvan IV     |red_role1=j
+						|red_pick2=Ryze     |red_role2=m
+|bluepick2=XZ    |bluerole2=j
+|bluepick3=Taliyah    |bluerole3=m
+						|red_pick3=Ambessa     |red_role3=t
+|blueban4=Bard     |red_ban4=Renekton
+|blueban5=Lucian     |red_ban5=Kai'Sa
+						|red_pick4=Karma     |red_role4=s
+|bluepick4=Yunara    |bluerole4=a
+|bluepick5=Rek'Sai    |bluerole5=t
+						|red_pick5=Ezreal     |red_role5=a
+|game1=yes
+}} 
+{{PicksAndBansS7|blueteam=BRION|redteam=Dplus|switched_sides=yes
+|team1score=0 |team2score=2 |winner=2 
+|blueban1=Qiyana     |red_ban1=Azir
+|blueban2=Malphite     |red_ban2=Jayce
+|blueban3=Akali     |red_ban3=Vi
+|bluepick1=Orianna    |bluerole1=m
+						|red_pick1=Rumble     |red_role1=t
+						|red_pick2=Pantheon     |red_role2=j
+|bluepick2=Nocturne    |bluerole2=j
+|bluepick3=K'Sante    |bluerole3=t
+						|red_pick3=LeBlanc     |red_role3=m
+|blueban4=Lucian     |red_ban4=Rakan
+|blueban5=Kalista     |red_ban5=Nautilus
+						|red_pick4=Bard     |red_role4=s
+|bluepick4=Jhin    |bluerole4=b
+|bluepick5=Elise    |bluerole5=s
+						|red_pick5=Sivir     |red_role5=b
+}}

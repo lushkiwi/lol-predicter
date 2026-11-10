@@ -154,9 +154,29 @@ def build_games(raw: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
                 notes.append(f"{side}_missed_bans:{n_missed}")
             if any(c is None for c in rec[f"{side}_picks"]):
                 notes.append(f"{side}_missing_picks")
+        # A champion cannot be banned twice or banned after being taken. Where OE shows that,
+        # Leaguepedia records a missed ban (see docs/M1_crosscheck.md), so the later occurrence
+        # in draft order is treated as a missed ban.
+        if fp_side is not None:
+            first, second = fp_side.lower(), draft.OTHER_SIDE[fp_side].lower()
+            seq = draft.interleave(rec[f"{first}_bans"], rec[f"{first}_picks"], rec[f"{second}_bans"], rec[f"{second}_picks"])
+            seen: set = set()
+            for i, c in enumerate(seq):
+                if c is None:
+                    continue
+                if c in seen and draft.ACTION_TYPE[i] == "ban":
+                    side = first if draft.ACTION_SLOT[i] == "first" else second
+                    rec[f"{side}_bans"][draft.ACTION_ORDINAL[i]] = None
+                    notes.append(f"{side}_duplicate_ban_treated_as_missed:{c}")
+                seen.add(c)
         champs = [c for s in ("blue", "red") for k in ("bans", "picks") for c in rec[f"{s}_{k}"] if c is not None]
         if len(champs) != len(set(champs)):
             notes.append("duplicate_champion_in_draft")
+        # Informational: both teams' picks listed exactly in role order (top..sup). Usually a
+        # genuine draft, occasionally an OE entry that lost the draft order (2 of 12 checked).
+        rec["picks_in_role_order"] = all(
+            rec[f"{s}_picks"] == rec[f"{s}_champs_by_role"] and None not in rec[f"{s}_picks"] for s in ("blue", "red")
+        )
         rec["n_actions"] = len(champs)
         rec["n_missed_bans"] = sum(c is None for s in ("blue", "red") for c in rec[f"{s}_bans"])
         rec["irregular"] = bool(notes)

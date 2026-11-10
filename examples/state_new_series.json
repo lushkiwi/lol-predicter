@@ -1,0 +1,68 @@
+{
+  "_comment": "A series that is NOT in the dataset: earlier games are given in previous_games (all 20 actions in draft order + winner) and are applied before predicting, so burns, series memory and team/player stats include them. 'actions' holds the current game's draft so far.",
+  "patch": "16.20",
+  "league": "WLDs",
+  "blue_team": "T1",
+  "red_team": "Bilibili Gaming",
+  "first_pick_team": "Bilibili Gaming",
+  "blue_players": [
+    "Doran",
+    "Oner",
+    "Faker",
+    "Peyz",
+    "Keria"
+  ],
+  "red_players": [
+    "Bin",
+    "Xun",
+    "Knight",
+    "Viper",
+    "ON"
+  ],
+  "fearless": "hard",
+  "previous_games": [
+    {
+      "blue_team": "Bilibili Gaming",
+      "red_team": "T1",
+      "first_pick_team": "T1",
+      "blue_players": [
+        "Bin",
+        "Xun",
+        "Knight",
+        "Viper",
+        "ON"
+      ],
+      "red_players": [
+        "Doran",
+        "Oner",
+        "Faker",
+        "Peyz",
+        "Keria"
+      ],
+      "actions": [
+        "Renata Glasc",
+        "Lulu",
+        "Ezreal",
+        "Cassiopeia",
+        "Jax",
+        "Olaf",
+        "Nocturne",
+        "Nautilus",
+        "Orianna",
+        "Locke",
+        "Rumble",
+        "K'Sante",
+        "Alistar",
+        "Lee Sin",
+        "Seraphine",
+        "Jarvan IV",
+        "Naafiri",
+        "Xayah",
+        "Rakan",
+        "Corki"
+      ],
+      "winner": "Bilibili Gaming"
+    }
+  ],
+  "actions": []
+}

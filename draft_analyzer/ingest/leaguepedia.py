@@ -100,7 +100,12 @@ class Client:
                     p = dict(params)
                     action = p.pop("action")
                     p.pop("format", None)
-                    data = self._site.api(action, **p)
+                    try:
+                        data = self._site.api(action, **p)
+                    except Exception as e:  # mwclient raises APIError(code, info, kwargs)
+                        if getattr(e, "code", None) == "ratelimited":
+                            raise RateLimited("ratelimited") from e
+                        raise
                 else:
                     resp = self._session.get(API_URL, params=params, timeout=60)
                     if resp.status_code == 429 or resp.status_code >= 500:
@@ -450,8 +455,6 @@ def parse_match_schedule(text: str, page: str) -> list[MSGame]:
             g = template_params(inner[0][1])
             if not (g.get("blue") or g.get("red") or g.get("riot_platform_game_id")):
                 continue  # unplayed game slot
-            if (g.get("ff") or "").strip() or _yes(g.get("remake")):
-                pass  # kept; join will simply not find it in OE
             out.append(
                 MSGame(
                     page=page,

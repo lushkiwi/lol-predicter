@@ -20,6 +20,7 @@ from sklearn.preprocessing import StandardScaler
 
 META_COLS = {"game_id", "series_id", "k", "y", "datetime", "league", "split"}
 BASE_FEATURES = ["elo_diff", "ctx_blue_first_pick"]
+UNPENALISED_SCALE = 30.0
 
 
 def feature_columns(win: pd.DataFrame) -> list[str]:
@@ -39,14 +40,20 @@ class WinModel:
     scaler: StandardScaler | None = None
     model: LogisticRegression | None = None
 
+    def _z(self, X: np.ndarray) -> np.ndarray:
+        """Standardise; base features (Elo, first pick) are scaled up so the L2 penalty, which is
+        there to shrink the weak draft features, leaves them effectively unpenalised."""
+        return self.scaler.transform(X) * self._scale
+
     def fit(self, win: pd.DataFrame) -> "WinModel":
         X = win[self.features].to_numpy(dtype=float)
         self.scaler = StandardScaler().fit(X)
-        self.model = LogisticRegression(C=self.C, max_iter=2000).fit(self.scaler.transform(X), win["y"].to_numpy())
+        self._scale = np.array([UNPENALISED_SCALE if f in BASE_FEATURES else 1.0 for f in self.features])
+        self.model = LogisticRegression(C=self.C, max_iter=5000).fit(self._z(X), win["y"].to_numpy())
         return self
 
     def predict(self, win: pd.DataFrame) -> np.ndarray:
-        return self.model.predict_proba(self.scaler.transform(win[self.features].to_numpy(dtype=float)))[:, 1]
+        return self.model.predict_proba(self._z(win[self.features].to_numpy(dtype=float)))[:, 1]
 
     def evaluate(self, win: pd.DataFrame) -> pd.DataFrame:
         out = win[["game_id", "series_id", "k", "y"]].reset_index(drop=True).copy()
@@ -55,7 +62,7 @@ class WinModel:
 
     def coefficients(self) -> pd.DataFrame:
         """Standardised coefficients (logit change per 1 SD of the feature)."""
-        return (pd.DataFrame({"feature": self.features, "coef_per_sd": self.model.coef_[0]})
+        return (pd.DataFrame({"feature": self.features, "coef_per_sd": self.model.coef_[0] * self._scale})
                 .assign(abs=lambda d: d.coef_per_sd.abs()).sort_values("abs", ascending=False)
                 .drop(columns="abs").reset_index(drop=True))
 
@@ -66,7 +73,7 @@ class WinModel:
         is coef_j * (x_j - mean_j); the base value is the logit at the training mean.
         """
         v = np.array([[float(x[f]) for f in self.features]])
-        z = self.scaler.transform(v)[0]
+        z = self._z(v)[0]
         return dict(zip(self.features, (self.model.coef_[0] * z).tolist()))
 
     @property
@@ -75,7 +82,7 @@ class WinModel:
 
 
 def choose_C(win_fit: pd.DataFrame, win_tune: pd.DataFrame, features: list[str],
-             grid=(0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0)) -> tuple[float, pd.DataFrame]:
+             grid=(1e-5, 3e-5, 1e-4, 3e-4, 0.001, 0.003, 0.01, 0.03, 0.1, 1.0)) -> tuple[float, pd.DataFrame]:
     """Pick the L2 strength by log loss on the tune period (all checkpoints)."""
     rows = []
     y = win_tune["y"].to_numpy()

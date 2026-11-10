@@ -395,8 +395,15 @@ class Engine:
         self.t_now = max(self.t_now, t)
 
     def flush(self) -> None:
-        self.advance(math.inf)
-        self.t_now = max((b_t for b_t in [self.t_now] if b_t != math.inf), default=self.t_now)
+        """Apply every pending game regardless of time (end of data / live snapshot)."""
+        t_last = max((item[0] for item in self._pending), default=self.t_now)
+        self.advance(t_last)
+
+    def replay(self, games: Iterable[GameRecord]) -> None:
+        """Feed finished games through the engine without computing features (fast)."""
+        for g in sorted(games, key=lambda r: (r.pre.t, r.pre.game_id)):
+            self.advance(g.pre.t)
+            self.submit(g)
 
     def begin_game(self, pre: PreGame) -> None:
         self.advance(pre.t)

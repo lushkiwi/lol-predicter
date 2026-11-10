@@ -1,0 +1,22 @@
+==Week 1==
+{{PicksAndBans/SectionButton|name=Week 1}}
+{{Box|start|padding=1em}}
+{{PicksAndBansS7|blueteam=Hanwha Life Esports|redteam=Gen.G 
+|team1score=0 |team2score=1 |winner=2 
+|blueban1= Varus    |red_ban1= Kalista
+|blueban2= Skarner    |red_ban2= Yone
+|blueban3= Rumble    |red_ban3= Gwen
+|bluepick1= Naafiri   |bluerole1= j
+						|red_pick1= Jayce    |red_role1= t
+						|red_pick2= Miss Fortune    |red_role2= a
+|bluepick2= Ambessa   |bluerole2= t
+|bluepick3= Ezreal   |bluerole3= a 
+						|red_pick3= Vi    |red_role3= j
+|blueban4= Rell    |red_ban4= Ryze
+|blueban5= Poppy    |red_ban5= Sylas
+						|red_pick4= Ahri    |red_role4= m
+|bluepick4= Aurora   |bluerole4= m
+|bluepick5= Alistar   |bluerole5= s
+						|red_pick5= Rakan    |red_role5= s
+|game1=yes
+}}

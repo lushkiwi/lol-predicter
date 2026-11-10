@@ -1,0 +1,26 @@
+{
+  "_comment": "Hypothetical game 5 of the last series in the data. Because series_id matches a series in the dataset, Fearless burns and the series score are derived automatically. Fill 'actions' in draft order as the draft happens (null = missed ban).",
+  "datetime": null,
+  "patch": "16.20",
+  "league": "WLDs",
+  "series_id": "S_LOLTMNT02_488293",
+  "blue_team": "Bilibili Gaming",
+  "red_team": "T1",
+  "first_pick_team": "T1",
+  "blue_players": [
+    "Bin",
+    "Xun",
+    "Knight",
+    "Viper",
+    "ON"
+  ],
+  "red_players": [
+    "Doran",
+    "Oner",
+    "Faker",
+    "Peyz",
+    "Keria"
+  ],
+  "fearless": "hard",
+  "actions": []
+}
