@@ -8,3 +8,5 @@ data/processed/
 data/cache/
 *.egg-info/
 .DS_Store
+reports/results/
+reports/logs/

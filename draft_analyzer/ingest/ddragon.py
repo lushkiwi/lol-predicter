@@ -10,7 +10,7 @@ import requests
 BASE_URL = "https://ddragon.leagueoflegends.com"
 USER_AGENT = "lol-draft-analyzer/0.1"
 CACHE_DIR = Path("data/raw/ddragon")
-OE_CACHE = Path("data/raw/oe/_all_years_cache.parquet")
+OE_CACHE = Path("data/raw/oe/_all_years_cache.parquet")  # legacy; only its directory is used
 TAGS = ["Fighter", "Tank", "Mage", "Assassin", "Marksman", "Support"]
 
 # Data Dragon `name` -> Oracle's Elixir spelling, only where they differ.
@@ -73,12 +73,22 @@ def load_champions(version: str | None = None, refresh: bool = False) -> pd.Data
     return parse_champions(raw)
 
 
-def oe_champion_names(path: Path = OE_CACHE) -> set[str]:
+def oe_champion_names(path: Path | None = None) -> set[str]:
+    """Champion names seen in the Oracle's Elixir data (all leagues).
+
+    Reads the per-year parquet caches written by ``ingest.oracles_elixir.load_raw``
+    (``data/raw/oe/*.pregame.parquet``), or a single parquet given as ``path``.
+    Returns an empty set when no OE data is on disk yet.
+    """
     cols = ["champion"] + [f"ban{i}" for i in range(1, 6)] + [f"pick{i}" for i in range(1, 6)]
-    df = pd.read_parquet(path, columns=cols)
+    paths = [Path(path)] if path is not None else sorted(OE_CACHE.parent.glob("*.pregame.parquet"))
     names: set[str] = set()
-    for c in cols:
-        names |= set(df[c].dropna().astype(str))
+    for p in paths:
+        if not p.exists():
+            continue
+        df = pd.read_parquet(p, columns=cols)
+        for c in cols:
+            names |= set(df[c].dropna().astype(str))
     return names
 
 
@@ -93,8 +103,8 @@ def build_champions_table(out_path: str = "data/processed/champions.parquet") ->
 if __name__ == "__main__":
     table = build_champions_table()
     print(f"version {latest_version()}: {len(table)} champions")
-    if OE_CACHE.exists():
-        oe = oe_champion_names()
+    oe = oe_champion_names()
+    if oe:
         dd = set(table["champion"])
         print("In OE, not in DDragon:", sorted(oe - dd))
         print("In DDragon, not in OE:", sorted(dd - oe))

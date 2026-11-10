@@ -2,7 +2,7 @@
 
     python -m draft_analyzer.experiments build   # features (one chronological pass)
     python -m draft_analyzer.experiments m2      # baselines  -> reports/M2_baselines.md
-    python -m draft_analyzer.experiments m3      # models     -> reports/M3_models.md
+    python -m draft_analyzer.experiments m3      # models (about 25 min), then `python -m draft_analyzer.report m3`
 
 Splits are by series start time (see features/dataset.py): train < 2026-07-20 <= val <
 2026-09-17 <= test. Model selection uses only the training period (its tail from 2026-04-01
@@ -36,10 +36,15 @@ def md(df: pd.DataFrame, floatfmt: str = ".4f") -> str:
 
 def split_indices(data: ds.NextActionData) -> dict[str, np.ndarray]:
     a = data.actions
-    idx = {s: np.flatnonzero((a["split"] == s).to_numpy()) for s in ("train", "val", "test")}
-    is_tune = ((a["split"] == "train") & (a["datetime"] >= ds.TUNE_START)).to_numpy()
-    idx["tune"] = np.flatnonzero(is_tune)
-    idx["fit"] = np.flatnonzero(((a["split"] == "train").to_numpy()) & ~is_tune)
+    # Actions whose true champion should not have been available (a ban of a Fearless-burned
+    # champion: 4 in the data, all LPL) are left out: keeping them would mean adding the answer
+    # to the candidate set by hand.
+    ok = ~a["label_forced"].to_numpy()
+    idx = {s: np.flatnonzero((a["split"] == s).to_numpy() & ok) for s in ("train", "val", "test")}
+    series_start = a.groupby("series_id")["datetime"].transform("min")  # never split a series
+    is_tune = ((a["split"] == "train") & (series_start >= ds.TUNE_START)).to_numpy()
+    idx["tune"] = np.flatnonzero(is_tune & ok)
+    idx["fit"] = np.flatnonzero((a["split"] == "train").to_numpy() & ~is_tune & ok)
     return idx
 
 
@@ -53,7 +58,14 @@ def save_result(name: str, frame: pd.DataFrame) -> None:
 
 
 def load_result(name: str) -> pd.DataFrame:
-    return pd.read_parquet(RESULTS / f"{name}.parquet")
+    """Saved per-row results. Next-action frames drop the forced-label actions (see split_indices)."""
+    res = pd.read_parquet(RESULTS / f"{name}.parquet")
+    if "action_index" in res.columns:
+        a = pd.read_parquet(ds.FEATURE_DIR / "actions.parquet")
+        forced = set(map(tuple, a.loc[a["label_forced"], ["game_id", "action_index"]].to_numpy()))
+        if forced:
+            res = res[[k not in forced for k in zip(res["game_id"], res["action_index"])]].reset_index(drop=True)
+    return res
 
 
 def split_table(data: ds.NextActionData, win: pd.DataFrame) -> pd.DataFrame:
@@ -376,6 +388,36 @@ def pack_models() -> None:
             pickle.dump({"next_action": na, "win": wn}, f)
 
 
+def m3_pair_split() -> None:
+    """Extra ablation: split the pairwise group into win-based synergy/counter features and
+    co-draft frequency (lift) features, to answer whether pro-only win-based pairs help at all."""
+    from .models.next_action import NextActionModel, exclude_baseline
+
+    data = ds.load()
+    idx = split_indices(data)
+    with open(MODELS / "next_action.pkl", "rb") as f:
+        joint = pickle.load(f)["joint"]
+    dt = data.actions["datetime"].to_numpy()
+    train_idx = idx["train"][dt[idx["train"]] >= np.datetime64(FEARLESS_ERA_START)]
+    all_feats = exclude_baseline(data.feature_names)
+    win_based = [f for f in all_feats if f.startswith("pair_syn") or f.startswith("pair_ctr")]
+    lift = [f for f in all_feats if f.startswith("pair_") and f not in win_based]
+    for name, drop in (("pair_winbased", win_based), ("pair_lift", lift)):
+        m = NextActionModel(features=[f for f in all_feats if f not in drop]).fit(data, train_idx, None, num_rounds=joint.best_iteration)
+        m.temperature = dict(joint.temperature)
+        r = m.evaluate(data, idx["val"])
+        save_result(f"na_ablate_{name}_val", r)
+        _log(f"ablation -{name} ({drop}): {ev.next_action_metrics(r)}")
+
+
+def m3() -> None:
+    m3_next_action()
+    m3_pair_split()
+    m3_win()
+    pack_models()
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
-    {"build": build, "m2": m2, "m3na": m3_next_action, "m3win": m3_win, "pack": pack_models}.get(cmd, lambda: print(__doc__))()
+    {"build": build, "m2": m2, "m3": m3, "m3na": m3_next_action, "m3pair": m3_pair_split, "m3win": m3_win,
+     "pack": pack_models}.get(cmd, lambda: print(__doc__))()

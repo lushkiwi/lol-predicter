@@ -292,8 +292,10 @@ class Decayed:
 
     def add(self, t: float, idx, val=1.0) -> None:
         self.decay_to(t)
-        if isinstance(idx, (list, tuple, np.ndarray)) or (isinstance(idx, tuple)):
-            np.add.at(self.v, idx, val)
+        if isinstance(idx, (list, tuple)) and (len(idx) == 0 or np.isscalar(idx[0])):
+            idx = np.asarray(idx, dtype=np.intp)  # a list/tuple of ids, not a multi-dim index
+        if isinstance(idx, (tuple, np.ndarray)):
+            np.add.at(self.v, idx, val)  # ndarray of ids, or a tuple of index arrays (one per axis)
         else:
             self.v[idx] += val
 

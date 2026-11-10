@@ -167,3 +167,13 @@ def test_available_mask_uses_slot_not_side():
     assert not mask[[0, 1, 2]].any() and not mask[list(g.actions[:6])].any()
     assert mask.sum() == synth.N_CHAMPS - 9
     assert DraftContext(g.pre, g.actions[:1]).acting_side == "Blue"  # second slot bans second
+
+
+def test_decayed_add_accepts_tuples_and_index_tuples():
+    d = Decayed(4, None)
+    d.add(0.0, (1, 2), 1.0)          # a tuple of ids is a list of ids, not a multi-dim index
+    d.add(0.0, [2, 3], 1.0)
+    np.testing.assert_allclose(d.v, [0, 1, 2, 1])
+    m = Decayed((3, 5), None)
+    m.add(0.0, (np.array([0, 2]), np.array([1, 4])), 1.0)  # (rows, cols)
+    assert m.v[0, 1] == 1 and m.v[2, 4] == 1 and m.v.sum() == 2

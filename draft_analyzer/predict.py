@@ -60,6 +60,10 @@ def predict_state(engine: Engine, models: dict, pre: PreGame, actions: tuple, to
     }
     win = models["win"]
     out["win"] = explain_win(win["model"], win["baseline"], engine.win_vector(ctx))
+    # what the picks so far have changed: same model, same game, before any draft action
+    p0 = float(win["model"].predict(pd.DataFrame([engine.win_vector(DraftContext(pre, ()))]))[0])
+    out["win"]["p_blue_win_before_draft"] = round(p0, 4)
+    out["win"]["change_since_draft_start_blue"] = round(out["win"]["p_blue_win"] - p0, 4)
     if not ctx.complete:
         na = models["next_action"]
         model = na["by_type"].get(ctx.action_type, na["joint"]) if na.get("by_type") else na["joint"]
@@ -154,27 +158,36 @@ def _guess_roles(engine: Engine, picks: list[int]) -> tuple:
 
 
 def _pre_from_state(engine: Engine, resolver: NameResolver, s: dict, series_id: str, n: int, t: float,
-                    burned: set, wins: dict) -> PreGame:
+                    picked: dict, wins: dict) -> PreGame:
+    """``picked`` maps team id -> champion ids that team picked earlier in the series."""
     blue, red = resolver.team(s["blue_team"]), resolver.team(s["red_team"])
     fp = s["first_pick_team"]
     if fp.lower() not in (s["blue_team"].lower(), s["red_team"].lower()):
         raise SystemExit("state file: first_pick_team must equal blue_team or red_team")
-    explicit = set(_encode(engine, s.get("burned", [])))
-    b = tuple(sorted(burned | explicit))
+    mode = s.get("fearless", "hard")
+    both = set(_encode(engine, s.get("burned", [])))  # explicit list: unavailable to both teams
+
+    def burned(own: str, opp: str, key: str) -> tuple:
+        # hard: everything picked by either team; soft: only the team's own earlier picks
+        auto = draft.burned_for_team(mode, picked.get(own, ()), picked.get(opp, ()))
+        return tuple(sorted(set(auto) | both | set(_encode(engine, s.get(key, [])))))
+
     return PreGame(
         game_id=s.get("game_id", f"live_{series_id}_{n}"), series_id=series_id, game_in_series=n, t=t,
         patch=str(s["patch"]), league=s["league"], season=int(s.get("season", datetime.now(timezone.utc).year)),
         split=s.get("split"), playoffs=int(s.get("playoffs", 0)), blue_team=blue, red_team=red,
         blue_players=resolver.players(blue, s["blue_players"]), red_players=resolver.players(red, s["red_players"]),
         first_pick_side="Blue" if fp.lower() == s["blue_team"].lower() else "Red",
-        fearless=s.get("fearless", "hard"), blue_burned=b, red_burned=b,
+        fearless=mode, blue_burned=burned(blue, red, "blue_burned"), red_burned=burned(red, blue, "red_burned"),
         blue_series_wins=wins.get(blue, 0), red_series_wins=wins.get(red, 0),
     )
 
 
 def live(state: dict, top_k: int = 10) -> dict:
-    """Predict from a manual state. Earlier games of the series (``previous_games``) are applied
-    to the engine first, so Fearless burns, series memory and team/player stats include them."""
+    """Predict from a manual state. Earlier games of the series are taken from the dataset
+    (when ``series_id`` names a series in it) and/or from ``previous_games``; the latter are
+    applied to the engine first, so Fearless burns, series memory and team/player stats
+    include them."""
     with open(MODELS / "engine.pkl", "rb") as f:
         engine: Engine = pickle.load(f)
     engine.flush()
@@ -183,23 +196,22 @@ def live(state: dict, top_k: int = 10) -> dict:
     t_now = max(t_now, engine.t_now)
     series_id = state.get("series_id", "live_series")
     prev = state.get("previous_games", [])
-    burned: set = set()
+    picked: dict = {}  # team id -> set of champion ids picked earlier in this series
     wins: dict = {}
     n_known = 0
     if state.get("series_id"):
-        # earlier games of this series that are already in the dataset: burns and score come from there
         games = pd.read_parquet(config.GAMES_PATH)
         known = games[games["series_id"] == state["series_id"]].sort_values("datetime")
         n_known = len(known)
         for g in known.itertuples():
             winner = g.blue_team_id if g.winner_side == "Blue" else g.red_team_id
             wins[winner] = wins.get(winner, 0) + 1
-            if state.get("fearless", "hard") != "none":
-                burned |= set(_encode(engine, [c for c in list(g.blue_picks) + list(g.red_picks) if c is not None]))
+            picked.setdefault(g.blue_team_id, set()).update(c for c in _encode(engine, g.blue_picks) if c >= 0)
+            picked.setdefault(g.red_team_id, set()).update(c for c in _encode(engine, g.red_picks) if c >= 0)
     for i, pg in enumerate(prev, 1):
-        merged = {**{k: v for k, v in state.items() if k not in ("actions", "previous_games", "burned")}, **pg}
+        merged = {**{k: v for k, v in state.items() if k not in ("actions", "previous_games", "burned", "blue_burned", "red_burned")}, **pg}
         t = t_now - (len(prev) - i + 1) / 24.0
-        pre = _pre_from_state(engine, resolver, merged, series_id, n_known + i, t, set(burned), dict(wins))
+        pre = _pre_from_state(engine, resolver, merged, series_id, n_known + i, t, picked, dict(wins))
         actions = _encode(engine, pg["actions"])
         if len(actions) != draft.N_ACTIONS:
             raise SystemExit(f"previous_games[{i - 1}]: need all 20 actions (use null for a missed ban)")
@@ -213,10 +225,10 @@ def live(state: dict, top_k: int = 10) -> dict:
         engine.flush()
         winner = pre.blue_team if blue_win else pre.red_team
         wins[winner] = wins.get(winner, 0) + 1
-        if state.get("fearless", "hard") != "none":
-            burned |= {c for c in rec.picks("Blue") + rec.picks("Red") if c >= 0}
+        picked.setdefault(pre.blue_team, set()).update(c for c in rec.picks("Blue") if c >= 0)
+        picked.setdefault(pre.red_team, set()).update(c for c in rec.picks("Red") if c >= 0)
     n = int(state.get("game_in_series", n_known + len(prev) + 1))
-    pre = _pre_from_state(engine, resolver, state, series_id, n, t_now, burned, wins)
+    pre = _pre_from_state(engine, resolver, state, series_id, n, t_now, picked, wins)
     actions = _encode(engine, state.get("actions", []))
     if len(actions) > draft.N_ACTIONS:
         raise SystemExit("state file: more than 20 actions")
@@ -255,7 +267,9 @@ def render(out: dict) -> str:
     w = out["win"]
     lines += ["", f"Win probability:  Blue {w['p_blue_win']:.1%}  /  Red {w['p_red_win']:.1%}",
               f"  baseline (Elo + side + first pick): Blue {w['p_blue_win_baseline']:.1%}   "
-              f"draft effect: {w['draft_effect_blue']:+.1%} for Blue",
+              f"draft effect (full model minus baseline): {w['draft_effect_blue']:+.1%} for Blue",
+              f"  same model before the draft started: Blue {w['p_blue_win_before_draft']:.1%}   "
+              f"change from the picks so far: {w['change_since_draft_start_blue']:+.1%} for Blue",
               "  top factors (log-odds of a blue win vs the average game):"]
     for f in w["top_factors"]:
         detail = ", ".join(f"{x['name']}={x['value']:.3g}" for x in f["features"][:3])

@@ -1,1 +1,0 @@
-[03:41:36] gbm_fearless_only: {'stage1_best_iteration': 633, 'stage1_tune_logloss': 2.6006401999861066, 'refit_rounds': 696, 'temperature': {'pick': 0.875, 'ban': 0.875}, 'seconds': 148, 'n_fit_actions': 88675, 'top1': 0.27062528806268243, 'top5': 0.6624673528959901, 'top10': 0.8307727761560916, 'log_loss': 2.567247543078652, 'n_actions': 13018, 'n_games': 651, 'n_series': 240}

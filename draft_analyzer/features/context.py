@@ -18,7 +18,7 @@ class ContextBlock(StatBlock):
     """
 
     name = "context"
-    prefix = "ctx_"
+    prefix = "ctx_"  # also emits series_* features (their own SHAP/ablation group)
 
     def __init__(self, C: int):
         self.C = C
