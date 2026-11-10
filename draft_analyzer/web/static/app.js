@@ -19,6 +19,17 @@ const GROUP_SHORT = {
   'series context': 'series',
   'team strength': 'strength',
 };
+const GROUP_LABEL = {
+  'champion meta strength': 'Meta strength',
+  'player comfort': 'Player comfort',
+  'role fit': 'Role fit',
+  'synergy/counter': 'Synergy / counter',
+  'team tendency': 'Team tendency',
+  'draft context': 'Draft context',
+  'series context': 'Series context',
+  'team strength': 'Team strength',
+};
+const groupLabel = (g) => GROUP_LABEL[g] || g;
 
 let META = null;            // GET /api/meta
 let ORDER = [];             // META.draft_order
@@ -431,7 +442,13 @@ function renderSetup() {
   fp[0].title = `${teamName('blue')} (blue side) has first pick`;
   fp[1].title = `${teamName('red')} (red side) has first pick`;
   setSeg('roleFilter', S.ui.role);
-  setSeg('sortMode', S.ui.sort);
+  const az = S.ui.sort === 'az';
+  $('sortToggle').classList.toggle('on', az);
+  $('sortToggle').setAttribute('aria-pressed', String(az));
+  const fearless = { hard: 'Hard Fearless', soft: 'Soft Fearless', none: 'No Fearless' }[S.fearless];
+  const sb = $('setupBtn');
+  sb.textContent = '';
+  sb.append(el('b', null, S.league), document.createTextNode(` · Patch ${S.patch} · ${fearless}`), el('span', 'caret', '▾'));
 }
 
 /* ---------- team columns ---------- */
@@ -610,7 +627,6 @@ function renderTeam(side) {
       s.appendChild(el('span', 'slot-next', type === 'ban' ? 'Banning…' : 'Picking…'));
     } else {
       s.classList.add('empty');
-      if (type === 'pick') s.appendChild(el('span', 'slot-order', '#' + (i + 1)));
     }
   }
 
@@ -642,7 +658,11 @@ function fillSlot(s, i, type) {
   if (type === 'pick') {
     const txt = el('div', 'slot-text');
     txt.appendChild(el('div', 'slot-name', name));
-    txt.appendChild(el('div', 'slot-meta', `#${i + 1}` + (info ? ` · ${probLabel(info.p)} · rank ${info.rank}` : '')));
+    if (info) {
+      // how the model rated this pick just before it happened
+      const meta = el('div', 'slot-meta' + (info.rank > 10 ? ' surprise' : ''), `${probLabel(info.p)} · rank ${info.rank}`);
+      txt.appendChild(meta);
+    }
     s.appendChild(txt);
   }
 }
@@ -657,9 +677,9 @@ function renderStatus() {
   $('undoBtn').disabled = !S.actions.length;
   $('newDraftBtn').disabled = !S.actions.length;
   const i = nextIndex();
-  $('missedBtn').disabled = done || ORDER[i].type !== 'ban';
+  $('missedBtn').hidden = done || ORDER[i].type !== 'ban';
   const gameNo = S.previous.length + 1;
-  st.title = '';
+  renderTimeline();
   if (done) {
     st.appendChild(el('span', 'status-main', `Game ${gameNo}: draft complete`));
     $('winBlue').textContent = teamName('blue') + ' won';
@@ -670,38 +690,53 @@ function renderStatus() {
   const a = ORDER[i];
   const side = sideOf(i);
   document.body.dataset.acting = side;
-  const dot = el('span', 'dot ' + side);
   const main = el('span', 'status-main');
   main.append(el('b', side + '-text', teamName(side)), document.createTextNode(` to ${a.type}`));
-  const sub = el('span', 'status-sub', `(${a.type} ${nthOfType(i)} of 10 · action ${i + 1}/20)`);
-  st.title = `${teamName(side)} to ${a.type}: ${phaseLabel(a.phase)}, ${a.type} ${nthOfType(i)} of 10, action ${i + 1} of 20, game ${gameNo}`;
-  st.append(dot, main, sub);
+  const sub = el('span', 'status-sub', `${phaseLabel(a.phase)} · ${i + 1} of ${ORDER.length}`);
+  st.append(main, sub);
+}
+
+// one mark per draft action: short = ban, tall = pick, coloured by the side that acts
+function renderTimeline() {
+  const box = $('timeline');
+  box.textContent = '';
+  const n = nextIndex();
+  ORDER.forEach((a, i) => {
+    if (i && a.phase !== ORDER[i - 1].phase) box.appendChild(el('span', 'tl-gap'));
+    const side = sideOf(i);
+    const state = i < n ? 'done' : i === n ? 'now' : 'todo';
+    const m = el('span', `tl-step tl-${a.type} tl-${side} tl-${state}`);
+    const what = i < n ? ': ' + (S.actions[i] || 'missed ban') : i === n ? ' (now)' : '';
+    m.title = `${i + 1}. ${teamName(side)} ${a.type} ${nthOfType(i)}${what}`;
+    box.appendChild(m);
+  });
 }
 function phaseLabel(ph) {
-  return { ban1: 'ban phase 1', pick1: 'pick phase 1', ban2: 'ban phase 2', pick2: 'pick phase 2' }[ph] || ph;
+  return { ban1: 'Ban phase 1', pick1: 'Pick phase 1', ban2: 'Ban phase 2', pick2: 'Pick phase 2' }[ph] || ph;
 }
 
 /* ---------- champion grid ---------- */
 
+const LIKELY_MIN_P = 0.01;  // "Most likely" holds every champion at or above this probability...
+const LIKELY_MIN_N = 6;     // ...but never fewer than this many
+const LIKELY_MAX_N = 28;
+
 function buildGrid() {
-  const grid = $('grid');
-  grid.textContent = '';
+  const box = $('likelyBox');
   for (const c of META.champions) {
     const t = el('button', 'tile');
     t.type = 'button';
     t.dataset.name = c.name;
     t.setAttribute('role', 'listitem');
-    const im = icon(c.name, 'tile-icon');
-    t.appendChild(im);
-    t.appendChild(el('span', 'tile-rank'));
+    t.appendChild(icon(c.name, 'tile-icon'));
     t.appendChild(el('span', 'tile-reason'));
     t.appendChild(el('span', 'tile-name', c.name));
     t.appendChild(el('span', 'tile-prob'));
     t.appendChild(el('span', 'tile-bar'));
     tiles.set(c.name, t);
-    grid.appendChild(t);
+    box.appendChild(t);
   }
-  grid.addEventListener('click', (e) => {
+  $('grid').addEventListener('click', (e) => {
     const t = e.target.closest('.tile');
     if (!t || t.classList.contains('off')) return;
     applyAction(t.dataset.name);
@@ -731,40 +766,53 @@ function champStatus(name, probs, actingSide) {
   return { available: true };
 }
 
+function placeTiles(box, list) {
+  const cur = box.children;
+  let same = cur.length === list.length;
+  for (let k = 0; same && k < list.length; k++) if (cur[k] !== list[k]) same = false;
+  if (!same) box.replaceChildren(...list);
+}
+
 function renderGrid() {
+  const grid = $('grid');
   const probs = currentProbs();
   const done = draftDone();
   const actingSide = done ? null : sideOf(nextIndex());
   const q = norm($('search').value);
   const role = S.ui.role;
+  // the numbers for this state are on their way: keep the layout still instead of re-sorting twice
+  const waiting = !probs && !done && !!R && !apiError;
+  grid.classList.toggle('waiting', waiting);
+  if (waiting) {
+    for (const c of META.champions) {
+      const t = tiles.get(c.name);
+      t.hidden = !((!q || norm(c.name).includes(q)) && roleMatch(c, role));
+      if (usedThisGame(c.name)) t.classList.add('off');
+    }
+    updateGridHeads();
+    return;
+  }
   const maxP = probs && R.next_action.probabilities.length ? R.next_action.probabilities[0].probability : 1;
   const otherBurned = actingSide ? new Set(burnedFor(other(actingSide))) : new Set();
   const rows = [];
   for (const c of META.champions) {
     const t = tiles.get(c.name);
     const st = champStatus(c.name, probs, actingSide);
-    const visible = (!q || norm(c.name).includes(q)) && roleMatch(c, role);
-    t.hidden = !visible;
+    t.hidden = !((!q || norm(c.name).includes(q)) && roleMatch(c, role));
     t.classList.toggle('off', !st.available);
     t.setAttribute('aria-disabled', String(!st.available));
     t.querySelector('.tile-reason').textContent = st.reason || '';
     const probEl = t.querySelector('.tile-prob');
-    const rankEl = t.querySelector('.tile-rank');
     const bar = t.querySelector('.tile-bar');
     if (st.available && st.p != null) {
-      const heat = Math.min(1, Math.sqrt(st.p / maxP));
-      t.style.setProperty('--heat', heat.toFixed(3));
+      t.style.setProperty('--heat', Math.min(1, Math.sqrt(st.p / maxP)).toFixed(3));
       bar.style.width = (100 * st.p / maxP).toFixed(1) + '%';
-      probEl.textContent = probLabel(st.p);
-      rankEl.textContent = st.rank <= 12 ? String(st.rank) : '';
-      t.classList.toggle('top', st.rank <= 12);
+      probEl.textContent = st.p >= 0.001 ? probLabel(st.p) : '';
       t.title = `${c.name}: ${pct(st.p)} (rank ${st.rank})`;
     } else {
       t.style.setProperty('--heat', '0');
       bar.style.width = '0';
       probEl.textContent = '';
-      rankEl.textContent = '';
-      t.classList.remove('top');
       t.title = st.why ? `${c.name}: ${st.why}` : c.name;
     }
     const ob = st.available && otherBurned.has(c.name);
@@ -772,27 +820,89 @@ function renderGrid() {
     if (ob) t.title += ` · Fearless: ${teamName(other(actingSide))} can no longer use it`;
     rows.push({ t, name: c.name, st });
   }
-  if (S.ui.sort === 'prob' && probs) {
-    rows.sort((a, b) => {
-      if (a.st.available !== b.st.available) return a.st.available ? -1 : 1;
-      if (a.st.available) return (a.st.rank || 1e9) - (b.st.rank || 1e9);
-      return a.name.localeCompare(b.name);
-    });
-  } else {
-    rows.sort((a, b) => a.name.localeCompare(b.name));
-  }
-  const grid = $('grid');
-  // re-order only if needed (moving nodes is cheap but avoid needless layout)
-  const cur = grid.children;
-  let same = cur.length === rows.length;
-  for (let k = 0; same && k < rows.length; k++) if (cur[k] !== rows[k].t) same = false;
-  if (!same) rows.forEach((r) => grid.appendChild(r.t));
+
+  const sectioned = S.ui.sort === 'prob' && !!probs;
+  grid.classList.toggle('flat', !sectioned);
   grid.classList.toggle('done', done);
+  if (!sectioned) {
+    rows.sort((a, b) => a.name.localeCompare(b.name));
+    placeTiles($('restBox'), []);
+    placeTiles($('offBox'), []);
+    placeTiles($('likelyBox'), rows.map((r) => r.t));
+    updateGridHeads();
+    return;
+  }
+  const avail = rows.filter((r) => r.st.available).sort((a, b) => a.st.rank - b.st.rank);
+  let nLikely = avail.filter((r) => r.st.p >= LIKELY_MIN_P).length;
+  nLikely = Math.min(avail.length, LIKELY_MAX_N, Math.max(nLikely, LIKELY_MIN_N));
+  const reasonOrder = { Banned: 0, Picked: 0, Fearless: 1 };
+  const off = rows.filter((r) => !r.st.available).sort((a, b) =>
+    ((reasonOrder[a.st.reason] ?? 2) - (reasonOrder[b.st.reason] ?? 2)) || a.name.localeCompare(b.name));
+  placeTiles($('likelyBox'), avail.slice(0, nLikely).map((r) => r.t));
+  placeTiles($('restBox'), avail.slice(nLikely).map((r) => r.t));
+  placeTiles($('offBox'), off.map((r) => r.t));
+  const covered = avail.slice(0, nLikely).reduce((a, r) => a + r.st.p, 0);
+  $('likelyNote').textContent = `${nLikely} champions cover ${Math.round(covered * 100)}% of the probability`;
+  updateGridHeads();
+}
+
+// section headings follow what the search and role filter leave visible
+function updateGridHeads() {
+  const flat = $('grid').classList.contains('flat');
+  let total = 0;
+  for (const [head, box, note] of [['likelyHead', 'likelyBox', null], ['restHead', 'restBox', 'restNote'], ['offHead', 'offBox', 'offNote']]) {
+    let n = 0;
+    for (const t of $(box).children) if (!t.hidden) n++;
+    total += n;
+    $(head).hidden = flat || !n;
+    $(box).hidden = !n;
+    if (note) $(note).textContent = String(n);
+  }
+  $('gridEmpty').hidden = total > 0;
+  // the coverage note describes the whole section, so it goes away while a filter hides part of it
+  $('likelyNote').hidden = !!norm($('search').value) || S.ui.role !== 'all';
 }
 
 function firstVisibleAvailable() {
-  for (const t of $('grid').children) if (!t.hidden && !t.classList.contains('off')) return t.dataset.name;
+  for (const t of $('grid').querySelectorAll('.tile')) if (!t.hidden && !t.classList.contains('off')) return t.dataset.name;
   return null;
+}
+
+/* ---------- recap: once the draft is complete, the champion grid gives way to how the model rated each action ---------- */
+
+function renderRecap() {
+  const done = draftDone();
+  $('grid').hidden = done;
+  $('toolbar').hidden = done;
+  const box = $('recap');
+  box.hidden = !done;
+  box.textContent = '';
+  if (!done) return;
+  const rated = S.actionInfo.filter((x, i) => x && S.actions[i]);
+  const top1 = rated.filter((x) => x.rank === 1).length;
+  const top5 = rated.filter((x) => x.rank <= 5).length;
+  const head = el('div', 'sec-head');
+  head.append(el('span', null, 'How the model rated each action'),
+    el('span', 'sec-note', rated.length ? `first choice ${top1} of ${rated.length} · in its top 5 ${top5} of ${rated.length}` : ''));
+  box.appendChild(head);
+  const cols = el('div', 'recap-cols');
+  let col = null;
+  ORDER.forEach((a, i) => {
+    if (!i || a.phase !== ORDER[i - 1].phase) {
+      if (a.phase === 'ban1' || a.phase === 'ban2') { col = el('div', 'recap-col'); cols.appendChild(col); }
+      col.appendChild(el('div', 'recap-phase', phaseLabel(a.phase)));
+    }
+    const side = sideOf(i);
+    const name = S.actions[i];
+    const info = name ? S.actionInfo[i] : null;
+    const row = el('div', `recap-row rc-${side} rc-${a.type}`);
+    row.title = `${i + 1}. ${teamName(side)} ${a.type}` + (name ? `: ${name}` : ': missed ban');
+    row.append(el('span', 'recap-n', String(i + 1)), name ? icon(name, 'recap-icon') : el('span', 'recap-icon'),
+      el('span', 'recap-name', name || 'No ban'),
+      el('span', 'recap-p' + (info && info.rank > 10 ? ' surprise' : ''), info ? `${probLabel(info.p)} · rank ${info.rank}` : '–'));
+    col.appendChild(row);
+  });
+  box.appendChild(cols);
 }
 
 /* ---------- predictions panel ---------- */
@@ -813,10 +923,10 @@ function renderPreds() {
   const i = nextIndex();
   const side = sideOf(i);
   $('predTitle').textContent = '';
-  $('predTitle').append(document.createTextNode('Next: '), el('b', side + '-text', teamName(side)), document.createTextNode(` ${ORDER[i].type} ${nthOfType(i)}`));
+  $('predTitle').append(document.createTextNode(`Likely ${ORDER[i].type}s for `), el('b', side + '-text', teamName(side)));
   const na = R && R.next_action;
   const fresh = na && na.action_index === i;
-  $('predCount').textContent = fresh ? `${na.n_candidates} possible` : '';
+  $('predCount').textContent = fresh ? `of ${na.n_candidates} available` : '';
   if (!na) { list.appendChild(el('li', 'pred-empty muted', 'Waiting for the model…')); return; }
   list.classList.toggle('stale', !fresh);
   const maxP = na.candidates.length ? na.candidates[0].probability : 1;
@@ -824,7 +934,7 @@ function renderPreds() {
     const li = el('li', 'pred');
     li.tabIndex = 0;
     li.dataset.name = c.champion;
-    li.title = `Apply ${c.champion}`;
+    li.setAttribute('aria-label', `${c.champion}, ${pct(c.probability)}. Press Enter to apply.`);
     li.appendChild(el('span', 'pred-rank', String(c.rank)));
     li.appendChild(icon(c.champion, 'pred-icon'));
     const body = el('div', 'pred-body');
@@ -834,22 +944,77 @@ function renderPreds() {
     fill.style.width = (100 * c.probability / maxP).toFixed(1) + '%';
     bar.appendChild(fill);
     top.append(el('span', 'pred-name', c.champion), bar, el('span', 'pred-pct', pct(c.probability)));
-    const chips = el('div', 'chips');
-    (c.top_factors || []).slice()
-      .sort((a, b) => Math.abs(b.shap_relative) - Math.abs(a.shap_relative))
-      .slice(0, 3)
-      .forEach((f) => {
-        const ch = el('span', 'chip ' + (f.direction === 'for' ? 'for' : 'against'),
-          `${GROUP_SHORT[f.group] || f.group} ${signed(f.shap_relative)}`);
-        ch.title = `${f.group}: ${signed(f.shap_relative, 3)} log-odds vs the field (${f.direction})\n` +
-          (f.features || []).map((x) => `  ${x.name} = ${fmtNum(x.value)} (${signed(x.shap_relative, 3)})`).join('\n');
-        chips.appendChild(ch);
-      });
-    body.append(top, chips);
+    const why = el('div', 'pred-why');
+    sortedFactors(c).slice(0, 3).forEach((f) => {
+      const item = el('span', 'factor');
+      item.append(document.createTextNode((GROUP_SHORT[f.group] || f.group) + ' '),
+        el('b', f.shap_relative >= 0 ? 'for' : 'against', signed(f.shap_relative)));
+      why.appendChild(item);
+    });
+    body.append(top, why);
     li.appendChild(body);
     list.appendChild(li);
   }
 }
+function sortedFactors(c) {
+  return (c.top_factors || []).slice().sort((a, b) => Math.abs(b.shap_relative) - Math.abs(a.shap_relative));
+}
+
+/* ---------- "why" card: the full factor breakdown of one candidate, shown on hover or focus ---------- */
+
+function candidate(name) {
+  const na = R && R.next_action;
+  if (!na || na.action_index !== nextIndex()) return null;
+  return na.candidates.find((c) => c.champion === name) || null;
+}
+
+function showWhy(anchor) {
+  const card = $('why');
+  const c = candidate(anchor.dataset.name);
+  if (!c) { hideWhy(); return; }
+  const na = R.next_action;
+  const side = sideOf(nextIndex());
+  card.textContent = '';
+  const head = el('div', 'why-head');
+  const ttl = el('div', 'why-title');
+  ttl.append(el('div', 'why-name', c.champion),
+    el('div', 'muted small', `Rank ${c.rank} of ${na.n_candidates} for ${teamName(side)}'s ${na.action_type}`));
+  head.append(icon(c.champion, 'why-icon'), ttl, el('div', 'why-pct', pct(c.probability)));
+  card.appendChild(head);
+  card.appendChild(el('div', 'why-sub', 'Why, compared with the average available champion'));
+  const factors = sortedFactors(c);
+  const scale = Math.max(0.5, ...factors.map((f) => Math.abs(f.shap_relative)));
+  for (const f of factors) {
+    const pos = f.shap_relative >= 0;
+    const row = el('div', 'why-row');
+    const track = el('div', 'why-track');
+    const fill = el('i', pos ? 'for' : 'against');
+    fill.style.width = (50 * Math.abs(f.shap_relative) / scale).toFixed(1) + '%';
+    track.appendChild(fill);
+    row.append(el('span', 'why-group', groupLabel(f.group)), track, el('b', pos ? 'for' : 'against', signed(f.shap_relative)));
+    card.appendChild(row);
+    const feats = el('div', 'why-feats');
+    (f.features || []).slice(0, 3).forEach((x) => {
+      const line = el('div', 'why-feat');
+      line.append(el('span', null, `${x.name} = ${fmtNum(x.value)}`), el('span', null, signed(x.shap_relative)));
+      feats.appendChild(line);
+    });
+    card.appendChild(feats);
+  }
+  card.appendChild(el('div', 'why-foot muted', 'Numbers are log-odds: +0.7 roughly doubles the odds, −0.7 halves them. Click the row to enter this champion.'));
+
+  card.hidden = false;
+  const r = anchor.getBoundingClientRect();
+  const panel = anchor.closest('.card').getBoundingClientRect();
+  const w = card.offsetWidth, h = card.offsetHeight;
+  let left = panel.left - w - 10;
+  if (left < 8) left = Math.min(window.innerWidth - w - 8, panel.right + 10);
+  const top = Math.max(8, Math.min(r.top - 10, window.innerHeight - h - 8));
+  card.style.left = Math.round(left) + 'px';
+  card.style.top = Math.round(top) + 'px';
+}
+function hideWhy() { $('why').hidden = true; }
+
 function fmtNum(v) {
   if (typeof v !== 'number') return String(v);
   return Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 1 ? v.toFixed(2) : v.toFixed(3);
@@ -875,7 +1040,7 @@ function renderWin() {
   $('evalRedPct').textContent = Math.round((1 - pb) * 100) + '%';
   $('evalBase').style.bottom = (w.p_blue_win_baseline * 100).toFixed(2) + '%';
   $('evalBase').title = `Baseline (team strength + side + first pick): ${blueName} ${pct(w.p_blue_win_baseline)}`;
-  $('evalbar').title = `${blueName} ${pct(pb)} · ${redName} ${pct(1 - pb)}\nTick = baseline ${pct(w.p_blue_win_baseline)}\n\n${META.win_note}`;
+  $('evalbar').title = `${blueName} ${pct(pb)} · ${redName} ${pct(1 - pb)}\nWhite tick = baseline ${pct(w.p_blue_win_baseline)} (team strength, side, first pick)\n\n${META.win_note}`;
 
   const row = el('div', 'win-row');
   const bt = el('div', 'win-team blue');
@@ -883,22 +1048,42 @@ function renderWin() {
   const rt = el('div', 'win-team red');
   rt.append(el('span', 'win-name', redName), el('span', 'win-pct', pct(w.p_red_win)));
   row.append(bt, rt);
+
+  // where the number comes from: the baseline, then the draft's (unvalidated) shift
   const eff = w.draft_effect_blue;
-  const effSide = eff >= 0 ? blueName : redName;
-  const meta = el('div', 'win-meta muted small');
-  meta.textContent = `Baseline ${blueName} ${pct(w.p_blue_win_baseline)} · draft effect ${Math.abs(eff * 100).toFixed(1)} pts toward ${effSide}`;
+  const effSide = eff >= 0 ? 'blue' : 'red';
+  const meta = el('div', 'win-meta');
+  const base = el('span', 'win-stat');
+  base.title = 'Team strength, side and first pick only';
+  base.append(el('span', 'muted', 'Baseline '), el('b', null, pct(w.p_blue_win_baseline)));
+  const draft = el('span', 'win-stat');
+  draft.append(el('span', 'muted', 'Draft '), el('b', effSide + '-text', `${Math.abs(eff * 100).toFixed(1)} pts → ${teamName(effSide)}`));
+  const cav = el('button', 'caveat');
+  cav.type = 'button';
+  cav.id = 'caveatBtn';
+  cav.setAttribute('aria-expanded', String(!$('caveatPop').hidden));
+  cav.append(document.createTextNode('not validated'), el('span', 'info-dot', 'i'));
+  draft.appendChild(cav);
+  meta.append(base, draft);
   nums.append(row, meta);
 
   renderGraph(w);
 
   const fx = $('winFactors');
   fx.textContent = '';
-  (w.top_factors || []).slice(0, 4).forEach((f) => {
+  const factors = (w.top_factors || []).slice(0, 4);
+  const scale = Math.max(0.2, ...factors.map((f) => Math.abs(f.shap)));
+  factors.forEach((f) => {
     const toward = f.favours === 'Blue' ? 'blue' : 'red';
-    const ch = el('span', 'chip side-' + toward, `${GROUP_SHORT[f.group] || f.group} → ${teamName(toward)} ${Math.abs(f.shap).toFixed(2)}`);
-    ch.title = `${f.group}: ${signed(f.shap, 3)} log-odds of a blue win\n` +
+    const r = el('div', 'wf-row');
+    const track = el('div', 'wf-track');
+    const fill = el('i', toward);
+    fill.style.width = Math.max(2, 100 * Math.abs(f.shap) / scale).toFixed(1) + '%';
+    track.appendChild(fill);
+    r.append(el('span', 'wf-group', groupLabel(f.group)), track, el('span', 'wf-team ' + toward + '-text', teamName(toward)));
+    r.title = `${f.group}: ${signed(f.shap, 3)} log-odds of a blue win\n` +
       (f.features || []).map((x) => `  ${x.name} = ${fmtNum(x.value)} (${signed(x.shap, 3)})`).join('\n');
-    fx.appendChild(ch);
+    fx.appendChild(r);
   });
 }
 
@@ -946,10 +1131,7 @@ function renderSeries() {
   const n = S.previous.length;
   const lbl = el('span', 'series-game', `Game ${n + 1}`);
   box.appendChild(lbl);
-  if (!n) {
-    box.appendChild(el('span', 'muted small', 'series not started'));
-    return;
-  }
+  if (!n) return;
   const b = S.blue.team.trim(), r = S.red.team.trim();
   const wb = S.previous.filter((g) => g.winner === b).length;
   const wr = S.previous.filter((g) => g.winner === r).length;
@@ -963,12 +1145,13 @@ function renderSeries() {
     chip.title = `Game ${k + 1}: ${g.blue_team} (blue) vs ${g.red_team} (red), first pick ${g.first_pick_team}. Winner: ${g.winner}\nPicks: ${picks.join(', ')}`;
     box.appendChild(chip);
   });
-  const rm = el('button', 'btn small ghost', 'Remove last');
+  const rm = el('button', 'btn small quiet', 'Remove last');
   rm.type = 'button';
   rm.title = `Remove game ${n} from the series`;
   rm.onclick = removeLastGame;
-  const rs = el('button', 'btn small ghost', 'Reset series');
+  const rs = el('button', 'btn small quiet', 'Reset');
   rs.type = 'button';
+  rs.title = 'Reset the series to game 1';
   rs.onclick = resetSeries;
   box.append(rm, rs);
 }
@@ -976,10 +1159,12 @@ function renderSeries() {
 /* ---------- render all ---------- */
 
 function render() {
+  hideWhy();
   renderSetup();
   SIDES.forEach(renderTeam);
   renderStatus();
   renderGrid();
+  renderRecap();
   renderPreds();
   renderWin();
   renderSeries();
@@ -994,7 +1179,11 @@ function bindEvents() {
   bindSeg('fearless', (v) => { S.fearless = v; commit(); });
   bindSeg('firstPick', (v) => { if (S.firstPick !== v) { S.firstPick = v; commit(); } });
   bindSeg('roleFilter', (v) => { S.ui.role = v; save(); renderSetup(); renderGrid(); });
-  bindSeg('sortMode', (v) => { S.ui.sort = v; save(); renderSetup(); renderGrid(); });
+  $('sortToggle').addEventListener('click', () => {
+    S.ui.sort = S.ui.sort === 'az' ? 'prob' : 'az';
+    save(); renderSetup(); renderGrid();
+    $('grid').scrollTop = 0;
+  });
   $('swapSides').addEventListener('click', swapSides);
   $('undoBtn').addEventListener('click', undo);
   $('missedBtn').addEventListener('click', () => applyAction(null));
@@ -1028,18 +1217,37 @@ function bindEvents() {
     if (li && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); applyAction(li.dataset.name); }
   });
 
+  const preds = $('predList');
+  preds.addEventListener('mouseover', (e) => { const li = e.target.closest('.pred'); if (li) showWhy(li); });
+  preds.addEventListener('mouseleave', hideWhy);
+  preds.addEventListener('focusin', (e) => { const li = e.target.closest('.pred'); if (li) showWhy(li); });
+  preds.addEventListener('focusout', hideWhy);
+  preds.addEventListener('scroll', hideWhy);
+
   const pop = $('caveatPop');
   pop.textContent = META.win_note;
+  const setupPop = $('setupPop');
   const togglePop = (show) => {
     pop.hidden = show === undefined ? !pop.hidden : !show;
-    $('caveatBtn').setAttribute('aria-expanded', String(!pop.hidden));
+    const b = $('caveatBtn');
+    if (b) b.setAttribute('aria-expanded', String(!pop.hidden));
   };
-  $('caveatBtn').addEventListener('click', (e) => { e.stopPropagation(); togglePop(); });
-  $('railInfo').addEventListener('click', (e) => { e.stopPropagation(); togglePop(); });
+  const toggleSetup = (show) => {
+    setupPop.hidden = show === undefined ? !setupPop.hidden : !show;
+    $('setupBtn').setAttribute('aria-expanded', String(!setupPop.hidden));
+  };
+  $('winNums').addEventListener('click', (e) => {
+    if (e.target.closest('.caveat')) { e.stopPropagation(); togglePop(); }
+  });
+  $('setupBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleSetup(); });
   document.addEventListener('click', (e) => {
     if (!pop.hidden && !pop.contains(e.target)) togglePop(false);
+    if (!setupPop.hidden && !setupPop.contains(e.target)) toggleSetup(false);
     const wl = document.querySelector('.warn-list');
     if (wl && !wl.hidden && !wl.contains(e.target)) wl.hidden = true;
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { togglePop(false); toggleSetup(false); }
   });
 
   document.addEventListener('keydown', (e) => {

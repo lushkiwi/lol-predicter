@@ -62,10 +62,13 @@ other league in the files) and `DRAFT_HISTORY_BLOCKS`.
 ```
 
 Pick the two teams (rosters fill in from their latest game), who has first pick, and click each ban and pick as
-the real draft happens. After every click the page shows the model's probability for every available champion,
-the top candidates with their main factors, and a chess-style evaluation bar for win probability with a graph
-over the draft. When a game ends, record the winner and the next game of the series starts with the Fearless
-burns applied. The server runs on localhost only and keeps the models in memory (about 50 ms per prediction).
+the real draft happens. After every click the page splits the champions into the likely ones (1% or more, shown
+large with their probability), the other available ones and the unavailable ones; lists the top 12 candidates
+with their three main factors (hover a row for the full breakdown down to single features); and moves a
+chess-style evaluation bar for win probability, with a graph over the draft. League, patch and Fearless mode
+are behind the summary at the top left. When a draft is complete the grid is replaced by a recap of how the
+model rated each action; record the winner and the next game of the series starts with the Fearless burns
+applied. The server runs on localhost only and keeps the models in memory (about 50 ms per prediction).
 Champion icons are fetched from Data Dragon once and cached in `data/raw/ddragon/img/`.
 
 ## Predicting from the command line

@@ -233,8 +233,9 @@ taken (Orianna 9 times in the top 15, Milio 3 times); the actual choice was rank
   state file. Both were run end to end.
 - `web/server.py` and `web/static/` are a local web UI on the live path (`python -m draft_analyzer.web`). The
   user clicks each ban and pick as a real draft happens; the page shows the probability of every available
-  champion, the top 12 candidates with their main factors, a vertical evaluation bar for win probability with the
-  baseline marked, and a graph of win probability over the draft. Recording a game's winner starts the next game
+  champion (likely ones large, the long tail small), the top 12 candidates with their main factors and a hover
+  card with the full breakdown, a vertical evaluation bar for win probability with the baseline marked, a graph
+  of win probability over the draft, and a recap of the model's rating of each action once a draft is complete. Recording a game's winner starts the next game
   of the series with Fearless burns applied. A prediction takes about 50 ms. Checked in headless Chrome: a full
   draft with a missed ban and undos, switching first pick, a second Fearless game, reload, no console errors. It
   has not been tried in other browsers. There is no automatic feed of live drafts; entry is by hand.

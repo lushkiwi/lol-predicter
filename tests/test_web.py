@@ -83,6 +83,8 @@ def test_page_and_assets_are_served(client):
     page = client.get("/")
     assert page.status_code == 200 and "/static/app.js" in page.text
     assert client.get("/static/app.js").status_code == 200 and client.get("/static/style.css").status_code == 200
+    # a cached script from before an update would break against the new page
+    assert client.get("/static/app.js").headers["cache-control"] == "no-cache"
     # nothing is loaded from another host
     for path in ("/", "/static/app.js", "/static/style.css"):
         text = client.get(path).text
