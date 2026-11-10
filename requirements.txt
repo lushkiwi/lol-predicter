@@ -1,0 +1,12 @@
+pandas>=2.2
+pyarrow
+numpy
+scikit-learn
+lightgbm
+shap
+gdown
+mwclient
+requests
+python-dotenv
+matplotlib
+pytest
