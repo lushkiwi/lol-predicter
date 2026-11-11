@@ -15,9 +15,9 @@ Rules applied throughout: time-based splits by series start; every comparison is
 
 ## 1. Next pick/ban model (validation: 651 games / 240 series, 13015 actions)
 
-LightGBM scoring (draft state, candidate champion) pairs with a listwise softmax cross-entropy objective over the available candidates (custom objective; outputs are probabilities). Training samples 60 negatives per action with an importance-weight correction; evaluation always uses every available champion (about 156 per action).
+LightGBM scoring (draft state, candidate champion) pairs with a listwise softmax cross-entropy objective over the available candidates (custom objective; outputs are probabilities). Evaluation always uses every available champion (about 156 per action).
 
-Final configuration: regime **all_decay365**, **one joint model**.
+Two training settings are used. The **experiments** (regimes, joint vs separate, ablations: sections 1.2 to 1.4) need many fits, so they train on 60 sampled negatives per action with an importance-weight correction, and all but the regime comparison use one fit. The **final model** (sections 1.1 and 1.5 to 1.8, the CLI and the web UI) uses the regime chosen there (**all_decay365**), trains on every candidate and is the mean logit of 3 fits with different seeds; both changes were chosen in `reports/tuning.md`. It is one joint model for picks and bans.
 
 ### 1.1 Final model vs baselines
 
@@ -31,22 +31,37 @@ Final configuration: regime **all_decay365**, **one joint model**.
 | A_presence | top5 | 0.3731 | -0.0234 | -0.0294 | -0.0174 | worse |
 | A_presence | top10 | 0.5604 | -0.0209 | -0.0267 | -0.0149 | worse |
 | A_presence | log_loss | 3.5822 | 0.0547 | 0.0441 | 0.0650 | worse |
-| model | top1 | 0.2748 | 0.1553 | 0.1479 | 0.1633 | better |
-| model | top5 | 0.6622 | 0.2657 | 0.2565 | 0.2749 | better |
-| model | top10 | 0.8320 | 0.2507 | 0.2420 | 0.2602 | better |
-| model | log_loss | 2.5580 | -0.9695 | -0.9948 | -0.9458 | better |
+| model | top1 | 0.2821 | 0.1626 | 0.1544 | 0.1713 | better |
+| model | top5 | 0.6704 | 0.2739 | 0.2647 | 0.2831 | better |
+| model | top10 | 0.8328 | 0.2516 | 0.2427 | 0.2606 | better |
+| model | log_loss | 2.5284 | -0.9992 | -1.0236 | -0.9758 | better |
+
+Final model against the single experiment model of the same regime (`diff` is final minus experiment):
+
+| model | metric | value | diff | ci_low | ci_high | verdict |
+|---|---|---|---|---|---|---|
+| experiment_single | top1 | 0.2715 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| experiment_single | top5 | 0.6626 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| experiment_single | top10 | 0.8314 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| experiment_single | log_loss | 2.5639 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| final | top1 | 0.2821 | 0.0107 | 0.0059 | 0.0159 | better |
+| final | top5 | 0.6704 | 0.0078 | 0.0035 | 0.0119 | better |
+| final | top10 | 0.8328 | 0.0014 | -0.0019 | 0.0044 | tie |
+| final | log_loss | 2.5284 | -0.0355 | -0.0408 | -0.0300 | better |
+
+The fits behind the final model, one per seed (validation): log loss 2.5387 / top-1 27.6%, log loss 2.5457 / top-1 27.6%, log loss 2.5551 / top-1 27.1%.
 
 By action type and draft phase (final model):
 
 | group | slice | top1 | top5 | top10 | log_loss | n_actions | n_games | n_series |
 |---|---|---|---|---|---|---|---|---|
-| overall | all | 0.2748 | 0.6622 | 0.8320 | 2.5580 | 13015 | 651 | 240 |
-| action_type | ban | 0.2733 | 0.6681 | 0.8444 | 2.5255 | 6505 | 651 | 240 |
-| action_type | pick | 0.2763 | 0.6562 | 0.8195 | 2.5905 | 6510 | 651 | 240 |
-| phase | ban1 | 0.3254 | 0.7248 | 0.8837 | 2.3124 | 3903 | 651 | 240 |
-| phase | pick1 | 0.3024 | 0.6818 | 0.8331 | 2.4896 | 3906 | 651 | 240 |
-| phase | ban2 | 0.1952 | 0.5830 | 0.7855 | 2.8452 | 2602 | 651 | 240 |
-| phase | pick2 | 0.2373 | 0.6179 | 0.7992 | 2.7417 | 2604 | 651 | 240 |
+| overall | all | 0.2821 | 0.6704 | 0.8328 | 2.5284 | 13015 | 651 | 240 |
+| action_type | ban | 0.2730 | 0.6746 | 0.8414 | 2.5090 | 6505 | 651 | 240 |
+| action_type | pick | 0.2912 | 0.6662 | 0.8243 | 2.5478 | 6510 | 651 | 240 |
+| phase | ban1 | 0.3205 | 0.7256 | 0.8770 | 2.3051 | 3903 | 651 | 240 |
+| phase | pick1 | 0.3157 | 0.6848 | 0.8374 | 2.4492 | 3906 | 651 | 240 |
+| phase | ban2 | 0.2018 | 0.5980 | 0.7879 | 2.8148 | 2602 | 651 | 240 |
+| phase | pick2 | 0.2546 | 0.6382 | 0.8045 | 2.6957 | 2604 | 651 | 240 |
 
 Same slices for baseline B, for reference:
 
@@ -64,24 +79,24 @@ Model vs baseline B within each slice:
 
 | slice | metric | model | baseline_B | diff | ci_low | ci_high | beats_B |
 |---|---|---|---|---|---|---|---|
-| ban | top1 | 0.2733 | 0.1453 | 0.1281 | 0.1154 | 0.1403 | True |
-| ban | top5 | 0.6681 | 0.4652 | 0.2029 | 0.1894 | 0.2181 | True |
-| ban | log_loss | 2.5255 | 3.3227 | -0.7972 | -0.8328 | -0.7641 | True |
-| pick | top1 | 0.2763 | 0.0939 | 0.1825 | 0.1722 | 0.1932 | True |
-| pick | top5 | 0.6562 | 0.3278 | 0.3284 | 0.3145 | 0.3433 | True |
-| pick | log_loss | 2.5905 | 3.7322 | -1.1417 | -1.1775 | -1.1069 | True |
-| ban1 | top1 | 0.3254 | 0.1996 | 0.1258 | 0.1076 | 0.1435 | True |
-| ban1 | top5 | 0.7248 | 0.5844 | 0.1404 | 0.1232 | 0.1586 | True |
-| ban1 | log_loss | 2.3124 | 2.9808 | -0.6684 | -0.7149 | -0.6254 | True |
-| pick1 | top1 | 0.3024 | 0.1249 | 0.1774 | 0.1637 | 0.1910 | True |
-| pick1 | top5 | 0.6818 | 0.4017 | 0.2801 | 0.2622 | 0.2969 | True |
-| pick1 | log_loss | 2.4896 | 3.5272 | -1.0376 | -1.0784 | -0.9954 | True |
-| ban2 | top1 | 0.1952 | 0.0638 | 0.1314 | 0.1164 | 0.1472 | True |
-| ban2 | top5 | 0.5830 | 0.2863 | 0.2967 | 0.2770 | 0.3174 | True |
-| ban2 | log_loss | 2.8452 | 3.8356 | -0.9904 | -1.0375 | -0.9434 | True |
-| pick2 | top1 | 0.2373 | 0.0472 | 0.1901 | 0.1739 | 0.2083 | True |
-| pick2 | top5 | 0.6179 | 0.2170 | 0.4009 | 0.3770 | 0.4241 | True |
-| pick2 | log_loss | 2.7417 | 4.0397 | -1.2979 | -1.3499 | -1.2440 | True |
+| ban | top1 | 0.2730 | 0.1453 | 0.1277 | 0.1145 | 0.1415 | True |
+| ban | top5 | 0.6746 | 0.4652 | 0.2094 | 0.1966 | 0.2242 | True |
+| ban | log_loss | 2.5090 | 3.3227 | -0.8137 | -0.8480 | -0.7822 | True |
+| pick | top1 | 0.2912 | 0.0939 | 0.1974 | 0.1862 | 0.2090 | True |
+| pick | top5 | 0.6662 | 0.3278 | 0.3384 | 0.3252 | 0.3519 | True |
+| pick | log_loss | 2.5478 | 3.7322 | -1.1844 | -1.2192 | -1.1498 | True |
+| ban1 | top1 | 0.3205 | 0.1996 | 0.1209 | 0.1012 | 0.1403 | True |
+| ban1 | top5 | 0.7256 | 0.5844 | 0.1412 | 0.1236 | 0.1597 | True |
+| ban1 | log_loss | 2.3051 | 2.9808 | -0.6757 | -0.7215 | -0.6336 | True |
+| pick1 | top1 | 0.3157 | 0.1249 | 0.1907 | 0.1759 | 0.2054 | True |
+| pick1 | top5 | 0.6848 | 0.4017 | 0.2832 | 0.2660 | 0.2983 | True |
+| pick1 | log_loss | 2.4492 | 3.5272 | -1.0780 | -1.1192 | -1.0369 | True |
+| ban2 | top1 | 0.2018 | 0.0638 | 0.1380 | 0.1217 | 0.1540 | True |
+| ban2 | top5 | 0.5980 | 0.2863 | 0.3117 | 0.2929 | 0.3316 | True |
+| ban2 | log_loss | 2.8148 | 3.8356 | -1.0208 | -1.0656 | -0.9735 | True |
+| pick2 | top1 | 0.2546 | 0.0472 | 0.2074 | 0.1893 | 0.2269 | True |
+| pick2 | top5 | 0.6382 | 0.2170 | 0.4213 | 0.3967 | 0.4454 | True |
+| pick2 | log_loss | 2.6957 | 4.0397 | -1.3440 | -1.3974 | -1.2894 | True |
 
 ### 1.2 Regime handling: does pre-Fearless data help?
 
@@ -89,43 +104,66 @@ Model vs baseline B within each slice:
 - **all_decay365**: train on all games (2024 included) with time-decay weights (half-life 365 days); the Fearless mode is a feature (`series_fearless`).
 - **all_nodecay**: all games, equal weights (extra reference).
 
+One fit of a regime moves by about as much from seed to seed as the regimes differ, so each regime here is the mean logit of 3 fits with different seeds. Log loss of the single fits: fearless_only 2.5697 / 2.5662 / 2.5735; all_decay365 2.5639 / 2.5674 / 2.5523; all_nodecay 2.5651 / 2.5652 / 2.5675.
+
 | model | metric | value | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|
-| fearless_only | top1 | 0.2712 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| fearless_only | top5 | 0.6612 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| fearless_only | top10 | 0.8307 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| fearless_only | log_loss | 2.5673 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| all_decay365 | top1 | 0.2748 | 0.0036 | -0.0013 | 0.0083 | tie |
-| all_decay365 | top5 | 0.6622 | 0.0009 | -0.0038 | 0.0058 | tie |
-| all_decay365 | top10 | 0.8320 | 0.0013 | -0.0018 | 0.0043 | tie |
-| all_decay365 | log_loss | 2.5580 | -0.0093 | -0.0149 | -0.0037 | better |
-| all_nodecay | top1 | 0.2727 | 0.0015 | -0.0038 | 0.0067 | tie |
-| all_nodecay | top5 | 0.6591 | -0.0022 | -0.0065 | 0.0022 | tie |
-| all_nodecay | top10 | 0.8321 | 0.0015 | -0.0019 | 0.0048 | tie |
-| all_nodecay | log_loss | 2.5660 | -0.0013 | -0.0073 | 0.0046 | tie |
+| fearless_only | top1 | 0.2786 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| fearless_only | top5 | 0.6666 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| fearless_only | top10 | 0.8309 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| fearless_only | log_loss | 2.5526 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| all_decay365 | top1 | 0.2801 | 0.0015 | -0.0029 | 0.0057 | tie |
+| all_decay365 | top5 | 0.6703 | 0.0037 | -0.0002 | 0.0075 | tie |
+| all_decay365 | top10 | 0.8335 | 0.0026 | 0.0002 | 0.0051 | better |
+| all_decay365 | log_loss | 2.5429 | -0.0098 | -0.0137 | -0.0060 | better |
+| all_nodecay | top1 | 0.2791 | 0.0005 | -0.0039 | 0.0048 | tie |
+| all_nodecay | top5 | 0.6668 | 0.0002 | -0.0036 | 0.0040 | tie |
+| all_nodecay | top10 | 0.8323 | 0.0015 | -0.0016 | 0.0046 | tie |
+| all_nodecay | log_loss | 2.5486 | -0.0040 | -0.0085 | 0.0004 | tie |
+
+Seed-0 fit of each regime (`seconds` covers all three fits):
 
 | run | train_actions | early_stop_round | tune_log_loss | seconds |
 |---|---|---|---|---|
-| gbm_fearless_only | 88674 | 635 | 2.5865 | 140 |
-| gbm_all_decay365 | 126941 | 746 | 2.5761 | 238 |
-| gbm_all_nodecay | 126941 | 849 | 2.5702 | 256 |
+| gbm_fearless_only | 88674 | 558 | 2.5821 | 417 |
+| gbm_all_decay365 | 126941 | 486 | 2.5684 | 584 |
+| gbm_all_nodecay | 126941 | 705 | 2.5678 | 665 |
 
 Decision rule: keep the all-games variant only if it beats fearless-only on log loss with a CI excluding zero. Kept: **all_decay365**.
 
 ### 1.3 One joint model vs separate pick and ban models
 
+Both sides are the mean logit of 3 fits (single fits of the separate models, log loss: 2.5490 / 2.5518 / 2.5561).
+
 | model | metric | value | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|
-| joint | top1 | 0.2748 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| joint | top5 | 0.6622 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| joint | top10 | 0.8320 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| joint | log_loss | 2.5580 | 0.0000 | 0.0000 | 0.0000 | baseline |
-| separate | top1 | 0.2739 | -0.0009 | -0.0063 | 0.0046 | tie |
-| separate | top5 | 0.6599 | -0.0022 | -0.0072 | 0.0029 | tie |
-| separate | top10 | 0.8318 | -0.0002 | -0.0043 | 0.0036 | tie |
-| separate | log_loss | 2.5608 | 0.0028 | -0.0040 | 0.0098 | tie |
+| joint | top1 | 0.2801 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| joint | top5 | 0.6703 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| joint | top10 | 0.8335 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| joint | log_loss | 2.5429 | 0.0000 | 0.0000 | 0.0000 | baseline |
+| separate | top1 | 0.2760 | -0.0041 | -0.0090 | 0.0009 | tie |
+| separate | top5 | 0.6675 | -0.0028 | -0.0072 | 0.0015 | tie |
+| separate | top10 | 0.8360 | 0.0025 | -0.0010 | 0.0060 | tie |
+| separate | log_loss | 2.5345 | -0.0084 | -0.0142 | -0.0028 | better |
 
-Separate models kept: **False** (they are kept only if they win on log loss).
+By draft phase:
+
+| phase | model | metric | value | diff | ci_low | ci_high | verdict |
+|---|---|---|---|---|---|---|---|
+| ban1 | separate | top1 | 0.3136 | -0.0097 | -0.0184 | -0.0013 | worse |
+| ban1 | separate | top5 | 0.7294 | -0.0044 | -0.0113 | 0.0024 | tie |
+| ban1 | separate | log_loss | 2.3322 | 0.0263 | 0.0161 | 0.0367 | worse |
+| pick1 | separate | top1 | 0.3054 | -0.0033 | -0.0131 | 0.0071 | tie |
+| pick1 | separate | top5 | 0.6782 | -0.0013 | -0.0085 | 0.0062 | tie |
+| pick1 | separate | log_loss | 2.4597 | -0.0150 | -0.0259 | -0.0037 | better |
+| ban2 | separate | top1 | 0.2048 | -0.0019 | -0.0133 | 0.0097 | tie |
+| ban2 | separate | top5 | 0.5903 | -0.0058 | -0.0182 | 0.0070 | tie |
+| ban2 | separate | log_loss | 2.7947 | -0.0362 | -0.0486 | -0.0235 | better |
+| pick2 | separate | top1 | 0.2465 | 0.0008 | -0.0093 | 0.0108 | tie |
+| pick2 | separate | top5 | 0.6356 | 0.0000 | -0.0090 | 0.0094 | tie |
+| pick2 | separate | log_loss | 2.6899 | -0.0228 | -0.0337 | -0.0120 | better |
+
+Separate models against the joint model: log loss **better**, top-1 **tie**. The final model is one joint model in either case: this comparison uses the sampled setting, and separate models would have to win again when trained on every candidate before they are served. That comparison has not been run (see the open questions in `docs/REPORT.md`).
 
 ### 1.4 Ablation: which feature groups earn their place
 
@@ -133,46 +171,46 @@ Each row retrains the joint model without one feature group (same recipe and num
 
 | removed_group | without | full | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|
-| champion meta strength | 2.7907 | 2.5580 | 0.2327 | 0.2151 | 0.2515 | earns its place |
-| champion attributes (Data Dragon tags) | 2.5614 | 2.5580 | 0.0034 | -0.0015 | 0.0083 | tie |
-| role fit / role distributions | 2.6634 | 2.5580 | 0.1054 | 0.0974 | 0.1135 | earns its place |
-| team tendency | 2.5781 | 2.5580 | 0.0201 | 0.0123 | 0.0276 | earns its place |
-| player comfort / mastery | 2.5774 | 2.5580 | 0.0193 | 0.0130 | 0.0262 | earns its place |
-| synergy / counter (pairwise) | 2.6893 | 2.5580 | 0.1313 | 0.1203 | 0.1420 | earns its place |
-| team strength (Elo) | 2.5591 | 2.5580 | 0.0010 | -0.0035 | 0.0059 | tie |
-| series context (Fearless burns, earlier bans, score) | 2.5830 | 2.5580 | 0.0250 | 0.0181 | 0.0312 | earns its place |
+| champion meta strength | 2.8074 | 2.5639 | 0.2436 | 0.2258 | 0.2633 | earns its place |
+| champion attributes (Data Dragon tags) | 2.5727 | 2.5639 | 0.0089 | 0.0039 | 0.0142 | earns its place |
+| role fit / role distributions | 2.6566 | 2.5639 | 0.0927 | 0.0846 | 0.1009 | earns its place |
+| team tendency | 2.5888 | 2.5639 | 0.0249 | 0.0177 | 0.0328 | earns its place |
+| player comfort / mastery | 2.5875 | 2.5639 | 0.0236 | 0.0160 | 0.0309 | earns its place |
+| synergy / counter (pairwise) | 2.7073 | 2.5639 | 0.1434 | 0.1317 | 0.1548 | earns its place |
+| team strength (Elo) | 2.5682 | 2.5639 | 0.0043 | -0.0011 | 0.0096 | tie |
+| series context (Fearless burns, earlier bans, score) | 2.5800 | 2.5639 | 0.0161 | 0.0098 | 0.0225 | earns its place |
 
 Top-1 and top-5:
 
 | removed_group | metric | without | full | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|---|
-| champion meta strength | top1 | 0.2392 | 0.2748 | -0.0357 | -0.0430 | -0.0283 | earns its place |
-| champion meta strength | top5 | 0.5999 | 0.6622 | -0.0622 | -0.0705 | -0.0542 | earns its place |
-| champion attributes (Data Dragon tags) | top1 | 0.2743 | 0.2748 | -0.0005 | -0.0053 | 0.0045 | tie |
-| champion attributes (Data Dragon tags) | top5 | 0.6613 | 0.6622 | -0.0008 | -0.0056 | 0.0040 | tie |
-| role fit / role distributions | top1 | 0.2662 | 0.2748 | -0.0087 | -0.0142 | -0.0032 | earns its place |
-| role fit / role distributions | top5 | 0.6361 | 0.6622 | -0.0260 | -0.0318 | -0.0207 | earns its place |
-| team tendency | top1 | 0.2745 | 0.2748 | -0.0004 | -0.0060 | 0.0051 | tie |
-| team tendency | top5 | 0.6552 | 0.6622 | -0.0069 | -0.0123 | -0.0016 | earns its place |
-| player comfort / mastery | top1 | 0.2705 | 0.2748 | -0.0043 | -0.0098 | 0.0008 | tie |
-| player comfort / mastery | top5 | 0.6555 | 0.6622 | -0.0067 | -0.0123 | -0.0013 | earns its place |
-| synergy / counter (pairwise) | top1 | 0.2445 | 0.2748 | -0.0303 | -0.0364 | -0.0242 | earns its place |
-| synergy / counter (pairwise) | top5 | 0.6218 | 0.6622 | -0.0403 | -0.0465 | -0.0343 | earns its place |
-| team strength (Elo) | top1 | 0.2786 | 0.2748 | 0.0038 | -0.0015 | 0.0089 | tie |
-| team strength (Elo) | top5 | 0.6607 | 0.6622 | -0.0015 | -0.0062 | 0.0032 | tie |
-| series context (Fearless burns, earlier bans, score) | top1 | 0.2740 | 0.2748 | -0.0008 | -0.0066 | 0.0047 | tie |
-| series context (Fearless burns, earlier bans, score) | top5 | 0.6560 | 0.6622 | -0.0061 | -0.0113 | -0.0012 | earns its place |
+| champion meta strength | top1 | 0.2340 | 0.2715 | -0.0374 | -0.0448 | -0.0299 | earns its place |
+| champion meta strength | top5 | 0.5976 | 0.6626 | -0.0650 | -0.0733 | -0.0570 | earns its place |
+| champion attributes (Data Dragon tags) | top1 | 0.2737 | 0.2715 | 0.0022 | -0.0031 | 0.0078 | tie |
+| champion attributes (Data Dragon tags) | top5 | 0.6590 | 0.6626 | -0.0036 | -0.0078 | 0.0008 | tie |
+| role fit / role distributions | top1 | 0.2589 | 0.2715 | -0.0126 | -0.0182 | -0.0070 | earns its place |
+| role fit / role distributions | top5 | 0.6376 | 0.6626 | -0.0250 | -0.0303 | -0.0198 | earns its place |
+| team tendency | top1 | 0.2734 | 0.2715 | 0.0019 | -0.0039 | 0.0073 | tie |
+| team tendency | top5 | 0.6553 | 0.6626 | -0.0073 | -0.0120 | -0.0025 | earns its place |
+| player comfort / mastery | top1 | 0.2696 | 0.2715 | -0.0018 | -0.0071 | 0.0034 | tie |
+| player comfort / mastery | top5 | 0.6542 | 0.6626 | -0.0084 | -0.0136 | -0.0033 | earns its place |
+| synergy / counter (pairwise) | top1 | 0.2381 | 0.2715 | -0.0333 | -0.0400 | -0.0266 | earns its place |
+| synergy / counter (pairwise) | top5 | 0.6198 | 0.6626 | -0.0428 | -0.0489 | -0.0371 | earns its place |
+| team strength (Elo) | top1 | 0.2760 | 0.2715 | 0.0045 | -0.0007 | 0.0099 | tie |
+| team strength (Elo) | top5 | 0.6599 | 0.6626 | -0.0028 | -0.0069 | 0.0015 | tie |
+| series context (Fearless burns, earlier bans, score) | top1 | 0.2731 | 0.2715 | 0.0017 | -0.0037 | 0.0071 | tie |
+| series context (Fearless burns, earlier bans, score) | top5 | 0.6580 | 0.6626 | -0.0046 | -0.0093 | 0.0001 | tie |
 
 The pairwise group split in two (log loss), because the spec asks whether pro-only synergy and counter statistics help at all:
 
 | removed | without | full | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|
-| win-based synergy/counter only (pair_syn_*, pair_ctr_*) | 2.5615 | 2.5580 | 0.0034 | -0.0021 | 0.0094 | tie |
-| co-draft frequency only (pair_colift_*, pair_vslift_*, pair_evidence_*) | 2.7059 | 2.5580 | 0.1479 | 0.1360 | 0.1600 | earns its place |
+| win-based synergy/counter only (pair_syn_*, pair_ctr_*) | 2.5683 | 2.5639 | 0.0044 | -0.0014 | 0.0100 | tie |
+| co-draft frequency only (pair_colift_*, pair_vslift_*, pair_evidence_*) | 2.7020 | 2.5639 | 0.1381 | 0.1270 | 0.1492 | earns its place |
 
 So the win-based synergy/counter estimates (the ones pro samples are too small for) add nothing measurable; the whole gain of the group comes from how often champions are drafted together or into each other, which is a statement about drafting habits, not about winning.
 
-For scale, a model with ONLY champion-meta and draft-position features scores log loss 3.2579 (full model 2.5580; diff +0.6999, CI [+0.6783, +0.7221]).
+For scale, a model with ONLY champion-meta and draft-position features scores log loss 3.2556 (full model 2.5639; diff +0.6917, CI [+0.6702, +0.7134]).
 
 ### 1.5 Feature importance
 
@@ -180,45 +218,45 @@ By group (gain share; summed mean |SHAP| on 1,500 validation actions):
 
 | group | gain_share | mean_abs_shap | n_features |
 |---|---|---|---|
-| champion meta strength | 0.5996 | 2.6627 | 14 |
-| role fit | 0.1199 | 1.3193 | 18 |
-| player comfort | 0.0337 | 0.5877 | 12 |
-| team tendency | 0.0511 | 0.4819 | 10 |
-| draft context | 0.0819 | 0.4662 | 9 |
-| synergy/counter | 0.0762 | 0.4552 | 10 |
-| series context | 0.0330 | 0.1987 | 8 |
-| team strength | 0.0027 | 0.0381 | 3 |
-| champion attributes | 0.0020 | 0.0315 | 7 |
+| champion meta strength | 0.5999 | 2.7239 | 14 |
+| role fit | 0.1108 | 1.4205 | 18 |
+| player comfort | 0.0580 | 0.9719 | 18 |
+| team tendency | 0.0488 | 0.5433 | 10 |
+| synergy/counter | 0.0820 | 0.4766 | 10 |
+| draft context | 0.0737 | 0.4380 | 9 |
+| series context | 0.0213 | 0.1255 | 8 |
+| team strength | 0.0034 | 0.0731 | 3 |
+| champion attributes | 0.0020 | 0.0478 | 7 |
 
 Top 25 features:
 
 | feature | group | gain | mean_abs_shap |
 |---|---|---|---|
-| meta_rate_action | champion meta strength | 0.2131 | 0.5723 |
-| meta_presence_patch_raw | champion meta strength | 0.1681 | 0.2518 |
-| meta_presence_recent | champion meta strength | 0.0772 | 0.7480 |
-| meta_rate_type | champion meta strength | 0.0767 | 0.1641 |
-| ctx_action_index | draft context | 0.0443 | 0.1958 |
-| pair_colift_own | synergy/counter | 0.0403 | 0.1039 |
-| role_fit_own | role fit | 0.0391 | 0.3739 |
-| role_fit_opp | role fit | 0.0383 | 0.1862 |
-| meta_rate_phase_slot | champion meta strength | 0.0296 | 0.0375 |
-| series_ban_own_prev | series context | 0.0258 | 0.0210 |
-| ctx_is_pick | draft context | 0.0229 | 0.1444 |
-| meta_presence_long | champion meta strength | 0.0154 | 0.3143 |
-| team_pick_rate_opp_recent | team tendency | 0.0133 | 0.1564 |
-| team_banned_against_opp | team tendency | 0.0127 | 0.0769 |
-| pair_colift_opp | synergy/counter | 0.0118 | 0.0498 |
-| pair_vslift_opp | synergy/counter | 0.0098 | 0.0969 |
-| team_pick_rate_own_recent | team tendency | 0.0075 | 0.0587 |
-| player_share_own | player comfort | 0.0073 | 0.0662 |
-| role_p_sup | role fit | 0.0069 | 0.0520 |
-| team_ban_rate_own | team tendency | 0.0062 | 0.0646 |
-| pair_evidence_own | synergy/counter | 0.0060 | 0.1038 |
-| meta_presence_league | champion meta strength | 0.0059 | 0.3386 |
-| player_win_resid_own | player comfort | 0.0059 | 0.0469 |
-| player_win_resid_opp | player comfort | 0.0053 | 0.0462 |
-| ctx_phase | draft context | 0.0053 | 0.0571 |
+| meta_rate_action | champion meta strength | 0.2500 | 0.5930 |
+| meta_presence_recent | champion meta strength | 0.1315 | 0.7197 |
+| meta_presence_patch_raw | champion meta strength | 0.1000 | 0.2263 |
+| meta_rate_type | champion meta strength | 0.0769 | 0.1782 |
+| ctx_action_index | draft context | 0.0458 | 0.2059 |
+| pair_colift_own | synergy/counter | 0.0374 | 0.1122 |
+| role_fit_own | role fit | 0.0332 | 0.4304 |
+| role_fit_opp | role fit | 0.0320 | 0.1728 |
+| series_ban_own_prev | series context | 0.0183 | 0.0190 |
+| meta_presence_long | champion meta strength | 0.0168 | 0.2917 |
+| ctx_is_pick | draft context | 0.0160 | 0.1331 |
+| pair_colift_opp | synergy/counter | 0.0156 | 0.0537 |
+| team_pick_rate_opp_recent | team tendency | 0.0126 | 0.1568 |
+| team_banned_against_opp | team tendency | 0.0109 | 0.0793 |
+| player_pool_share_left_own | player comfort | 0.0107 | 0.0601 |
+| pair_vslift_opp | synergy/counter | 0.0107 | 0.0990 |
+| pair_evidence_own | synergy/counter | 0.0086 | 0.0955 |
+| team_pick_rate_own_recent | team tendency | 0.0078 | 0.0698 |
+| player_pool_frac_left_own | player comfort | 0.0068 | 0.1550 |
+| player_pool_frac_left_opp | player comfort | 0.0066 | 0.1359 |
+| role_p_sup | role fit | 0.0066 | 0.0533 |
+| player_win_resid_opp | player comfort | 0.0056 | 0.0466 |
+| player_win_resid_own | player comfort | 0.0055 | 0.0438 |
+| ctx_phase | draft context | 0.0054 | 0.0282 |
+| team_ban_rate_own | team tendency | 0.0054 | 0.0732 |
 
 ### 1.6 Are the probabilities honest?
 
@@ -226,14 +264,14 @@ Top-1 confidence vs accuracy on validation (joint model). A calibrated model has
 
 | bin | actions | mean_top1_prob | top1_accuracy |
 |---|---|---|---|
-| [0.0, 0.1) | 69 | 0.0908 | 0.0725 |
-| [0.1, 0.2) | 3943 | 0.1603 | 0.1605 |
-| [0.2, 0.3) | 4249 | 0.2447 | 0.2276 |
-| [0.3, 0.4) | 2214 | 0.3458 | 0.3071 |
-| [0.4, 0.5) | 1251 | 0.4437 | 0.4173 |
-| [0.5, 0.6) | 607 | 0.5456 | 0.4992 |
-| [0.6, 0.8) | 560 | 0.6813 | 0.6571 |
-| [0.8, 1.0) | 122 | 0.8636 | 0.8115 |
+| [0.0, 0.1) | 55 | 0.0927 | 0.0909 |
+| [0.1, 0.2) | 4072 | 0.1623 | 0.1704 |
+| [0.2, 0.3) | 4542 | 0.2449 | 0.2387 |
+| [0.3, 0.4) | 2255 | 0.3444 | 0.3406 |
+| [0.4, 0.5) | 1103 | 0.4434 | 0.4161 |
+| [0.5, 0.6) | 509 | 0.5443 | 0.5894 |
+| [0.6, 0.8) | 396 | 0.6829 | 0.7222 |
+| [0.8, 1.0) | 83 | 0.8729 | 0.9157 |
 
 ### 1.7 Failure cases: confidently wrong (validation)
 
@@ -241,27 +279,29 @@ The 15 actions where the model put the most probability on a champion that was n
 
 | game | action | predicted | p_pred | actual | p_actual | rank_actual |
 |---|---|---|---|---|---|---|
-| LCP 2026-07-31 CTBC Flying Oyster vs GAM Esports g3 | 6 (Red pick) | Orianna | 0.890 | Varus | 0.025 | 2 |
-| LCK 2026-08-01 BNK FEARX vs Nongshim RedForce g3 | 6 (Red pick) | Orianna | 0.880 | Locke | 0.017 | 3 |
-| LCS 2026-08-29 Team Liquid vs Shopify Rebellion g3 | 9 (Red pick) | Milio | 0.880 | Skarner | 0.008 | 5 |
-| LEC 2026-08-23 GiantX vs Team Heretics g2 | 11 (Red pick) | Milio | 0.860 | Leona | 0.009 | 6 |
-| LPL 2026-08-30 Team WE vs JD Gaming g3 | 6 (Red pick) | Orianna | 0.852 | Olaf | 0.019 | 3 |
-| LPL 2026-09-06 Team WE vs Invictus Gaming g2 | 5 (Blue ban) | Orianna | 0.848 | Jarvan IV | 0.033 | 2 |
-| LCS 2026-08-15 Team Liquid vs Disguised g2 | 11 (Blue pick) | Milio | 0.843 | Nami | 0.031 | 2 |
-| LPL 2026-08-01 Anyone's Legend vs ThunderTalk Gaming g2 | 10 (Blue pick) | Leona | 0.842 | Skarner | 0.010 | 8 |
-| LPL 2026-09-03 Bilibili Gaming vs Team WE g3 | 6 (Blue pick) | Orianna | 0.841 | Jayce | 0.013 | 6 |
-| LCS 2026-08-30 LYON vs Team Liquid g2 | 6 (Red pick) | Orianna | 0.837 | Pantheon | 0.008 | 6 |
-| LCK 2026-08-20 Nongshim RedForce vs Kiwoom DRX g2 | 10 (Red pick) | Bard | 0.837 | Shen | 0.032 | 3 |
-| LPL 2026-08-28 Invictus Gaming vs ThunderTalk Gaming g2 | 8 (Blue pick) | Seraphine | 0.836 | Naafiri | 0.036 | 3 |
-| LPL 2026-08-23 Bilibili Gaming vs Anyone's Legend g3 | 6 (Red pick) | Orianna | 0.835 | Seraphine | 0.008 | 6 |
-| LCS 2026-08-29 LYON vs Cloud9 g2 | 6 (Red pick) | Orianna | 0.827 | Jarvan IV | 0.033 | 3 |
-| LCP 2026-07-26 GAM Esports vs DetonatioN FocusMe g2 | 3 (Blue ban) | Orianna | 0.822 | Rumble | 0.012 | 6 |
+| LCP 2026-07-31 CTBC Flying Oyster vs GAM Esports g3 | 6 (Red pick) | Orianna | 0.836 | Varus | 0.033 | 3 |
+| LCK 2026-08-01 BNK FEARX vs Nongshim RedForce g3 | 6 (Red pick) | Orianna | 0.836 | Locke | 0.036 | 3 |
+| LPL 2026-07-22 Top Esports vs Team WE g2 | 1 (Blue ban) | Orianna | 0.814 | Naafiri | 0.019 | 4 |
+| LCK 2026-08-20 Nongshim RedForce vs Kiwoom DRX g2 | 10 (Red pick) | Bard | 0.813 | Shen | 0.022 | 5 |
+| LCP 2026-07-26 GAM Esports vs DetonatioN FocusMe g2 | 6 (Red pick) | Orianna | 0.813 | Naafiri | 0.026 | 3 |
+| LPL 2026-08-01 Anyone's Legend vs ThunderTalk Gaming g2 | 10 (Blue pick) | Leona | 0.812 | Skarner | 0.012 | 7 |
+| LPL 2026-09-06 Team WE vs Invictus Gaming g2 | 6 (Red pick) | Orianna | 0.804 | Rumble | 0.113 | 2 |
+| LPL 2026-08-28 Invictus Gaming vs ThunderTalk Gaming g3 | 6 (Red pick) | Orianna | 0.795 | Ryze | 0.106 | 2 |
+| LPL 2026-07-25 Invictus Gaming vs Weibo Gaming g3 | 1 (Blue ban) | Orianna | 0.784 | Vi | 0.116 | 2 |
+| LCS 2026-08-29 Team Liquid vs Shopify Rebellion g3 | 9 (Red pick) | Milio | 0.783 | Skarner | 0.013 | 5 |
+| LEC 2026-08-30 Team Heretics vs Movistar KOI g1 | 18 (Blue pick) | Milio | 0.781 | Nami | 0.028 | 4 |
+| LEC 2026-08-23 GiantX vs Team Heretics g2 | 11 (Red pick) | Milio | 0.769 | Leona | 0.029 | 3 |
+| LEC 2026-09-05 Karmine Corp vs GiantX g2 | 11 (Blue pick) | Leona | 0.767 | Rell | 0.013 | 6 |
+| LPL 2026-08-28 Invictus Gaming vs ThunderTalk Gaming g2 | 8 (Blue pick) | Seraphine | 0.765 | Naafiri | 0.058 | 3 |
+| LPL 2026-09-06 Ninjas in Pyjamas vs LGD Gaming g5 | 6 (Red pick) | Vi | 0.762 | Xayah | 0.005 | 10 |
 
-Surprises: in 61 of 13015 validation actions (0.5%) the chosen champion was ranked below 50. By phase: {"pick2": 33, "pick1": 11, "ban2": 11, "ban1": 6}. Most frequent surprise champions: Taliyah (4), Vladimir (3), Kai'Sa (3), Locke (2), Xerath (2), Dr. Mundo (2), Volibear (2), Seraphine (2).
+Surprises: in 56 of 13015 validation actions (0.4%) the chosen champion was ranked below 50. By phase: {"pick2": 31, "pick1": 11, "ban2": 10, "ban1": 4}. Most frequent surprise champions: Vladimir (3), Kai'Sa (3), Locke (2), Xerath (2), Volibear (2), Seraphine (2), Gwen (2), LeBlanc (2).
 
-When the model is at least 50% confident (1289 actions) it is right 59.7% of the time (mean confidence 63.5%).
+When the model is at least 50% confident (988 actions) it is right 67.0% of the time (mean confidence 62.7%).
 
-### 1.8 Test split, scored once (149 games / 59 series, 2980 actions; Worlds 2026 and later)
+### 1.8 Test split (149 games / 59 series, 2980 actions; Worlds 2026 and later)
+
+No choice was made on this split. It has been scored more than once (the first M3 model, and this final model after the changes chosen on validation in `reports/tuning.md`), so it is no longer a first look.
 
 | model | metric | value | diff | ci_low | ci_high | verdict |
 |---|---|---|---|---|---|---|
@@ -273,20 +313,20 @@ When the model is at least 50% confident (1289 actions) it is right 59.7% of the
 | A_presence | top5 | 0.3711 | -0.0221 | -0.0333 | -0.0115 | worse |
 | A_presence | top10 | 0.5466 | -0.0191 | -0.0321 | -0.0071 | worse |
 | A_presence | log_loss | 3.6044 | 0.0617 | 0.0444 | 0.0791 | worse |
-| model | top1 | 0.2738 | 0.1336 | 0.1194 | 0.1494 | better |
-| model | top5 | 0.6426 | 0.2493 | 0.2312 | 0.2678 | better |
-| model | top10 | 0.8242 | 0.2584 | 0.2430 | 0.2733 | better |
-| model | log_loss | 2.5960 | -0.9466 | -0.9827 | -0.9114 | better |
+| model | top1 | 0.2792 | 0.1389 | 0.1248 | 0.1543 | better |
+| model | top5 | 0.6557 | 0.2624 | 0.2468 | 0.2797 | better |
+| model | top10 | 0.8302 | 0.2644 | 0.2475 | 0.2818 | better |
+| model | log_loss | 2.5509 | -0.9918 | -1.0270 | -0.9583 | better |
 
 | group | slice | top1 | top5 | top10 | log_loss | n_actions | n_games | n_series |
 |---|---|---|---|---|---|---|---|---|
-| overall | all | 0.2738 | 0.6426 | 0.8242 | 2.5960 | 2980 | 149 | 59 |
-| action_type | ban | 0.2651 | 0.6443 | 0.8141 | 2.6340 | 1490 | 149 | 59 |
-| action_type | pick | 0.2826 | 0.6409 | 0.8342 | 2.5580 | 1490 | 149 | 59 |
-| phase | ban1 | 0.3098 | 0.6935 | 0.8445 | 2.4774 | 894 | 149 | 59 |
-| phase | pick1 | 0.3244 | 0.6566 | 0.8389 | 2.4763 | 894 | 149 | 59 |
-| phase | ban2 | 0.1980 | 0.5705 | 0.7685 | 2.8689 | 596 | 149 | 59 |
-| phase | pick2 | 0.2198 | 0.6174 | 0.8272 | 2.6807 | 596 | 149 | 59 |
+| overall | all | 0.2792 | 0.6557 | 0.8302 | 2.5509 | 2980 | 149 | 59 |
+| action_type | ban | 0.2671 | 0.6537 | 0.8195 | 2.5935 | 1490 | 149 | 59 |
+| action_type | pick | 0.2913 | 0.6577 | 0.8409 | 2.5083 | 1490 | 149 | 59 |
+| phase | ban1 | 0.3065 | 0.7002 | 0.8501 | 2.4482 | 894 | 149 | 59 |
+| phase | pick1 | 0.3255 | 0.6711 | 0.8356 | 2.4400 | 894 | 149 | 59 |
+| phase | ban2 | 0.2081 | 0.5839 | 0.7735 | 2.8114 | 596 | 149 | 59 |
+| phase | pick2 | 0.2399 | 0.6376 | 0.8490 | 2.6109 | 596 | 149 | 59 |
 
 ## 2. Win probability model (validation: 651 games / 240 series)
 

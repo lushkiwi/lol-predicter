@@ -1,13 +1,14 @@
 """Player champion mastery (as-of), weighted by the role a candidate would be played in.
 
-Besides comfort (games, share, win residual) the block tracks two things a ban aims at:
+Besides comfort (games, share, win residual) the block tracks how thin a player's pool is right
+now ("pool pinch"): a champion's share of what the player still has available after Fearless
+burns and this game's picks and bans, how much of the pool is left, and how many comfort
+champions remain.
 
-* which champions get banned against a PLAYER (the team-tendency block only knows the team, so
-  it loses the history when a player changes team). A ban is attributed to the opposing
-  players in proportion to P(role | champion);
-* how thin a player's pool is right now: a champion's share of what the player still has
-  available after Fearless burns and this game's picks and bans, how much of the pool is left,
-  and how many comfort champions remain.
+``targeted_bans=True`` adds which champions get banned against a PLAYER (a ban is attributed to
+the opposing players in proportion to P(role | champion), and follows the player across teams).
+Those features made validation slightly worse (reports/player_targeting.md), so they are off
+by default and only the experiment build (`experiments expbuild`) turns them on.
 """
 from __future__ import annotations
 
@@ -31,10 +32,10 @@ class PlayerMasteryBlock(StatBlock):
 
     def __init__(self, champs: ChampionIndex, half_life: float = 180.0, share_prior: float = 5.0,
                  resid_prior: float = 8.0, pool_min_games: float = 3.0, ban_prior: float = 5.0,
-                 pinch_prior: float = 3.0):
+                 pinch_prior: float = 3.0, targeted_bans: bool = False):
         self.C = champs.C
         self.share_prior, self.resid_prior, self.pool_min_games = share_prior, resid_prior, pool_min_games
-        self.ban_prior, self.pinch_prior = ban_prior, pinch_prior
+        self.ban_prior, self.pinch_prior, self.targeted_bans = ban_prior, pinch_prior, targeted_bans
         C = self.C
         self.banned = DecayedMap((C,), half_life)  # bans aimed at the player (weight P(role | champion))
         self.ban_games = DecayedMap((1,), half_life)  # the player's games with a known draft
@@ -54,7 +55,7 @@ class PlayerMasteryBlock(StatBlock):
             for r, p in enumerate(pre.players(side)):
                 if draft.is_missing(p):
                     continue
-                if p in self.banned:
+                if self.targeted_bans and p in self.banned:
                     B[r] = self.banned.read(p, t)
                     N[r] = self.ban_games.read(p, t)[0]
                 if p not in self.games:
@@ -97,9 +98,9 @@ class PlayerMasteryBlock(StatBlock):
             out[f"player_career_{tag}"] = np.log1p(np.einsum("cr,rc->c", W, c["K"]))
             out[f"player_share_{tag}"] = np.einsum("cr,rc->c", W, c["share"])
             out[f"player_win_resid_{tag}"] = np.einsum("cr,rc->c", W, c["resid"])
-            # bans aimed at the player who would play the candidate
-            out[f"player_banned_vs_{tag}"] = np.einsum("cr,rc->c", W, c["ban_rate"])
-            out[f"player_ban_focus_{tag}"] = W @ c["ban_focus"]
+            if self.targeted_bans:  # bans aimed at the player who would play the candidate
+                out[f"player_banned_vs_{tag}"] = np.einsum("cr,rc->c", W, c["ban_rate"])
+                out[f"player_ban_focus_{tag}"] = W @ c["ban_focus"]
             # what that player still has: Fearless burns and this game's picks and bans are gone
             avail = c["avail"]
             taken = ctx.taken()
@@ -144,7 +145,7 @@ class PlayerMasteryBlock(StatBlock):
 
     def update(self, g: GameRecord, exp_blue: float) -> None:
         t = g.pre.t
-        if g.draft_known:
+        if self.targeted_bans and g.draft_known:
             roles = self.engine.by_name.get("roles")
             P = roles.probs_at(t) if roles is not None else None
             for side, other in (("Blue", "Red"), ("Red", "Blue")):

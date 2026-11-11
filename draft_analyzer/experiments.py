@@ -174,6 +174,7 @@ def m2() -> None:
 # --------------------------------------------------------------------------------------
 # M3: next action
 # --------------------------------------------------------------------------------------
+REGIME_SEEDS = (0, 1, 2)  # each training regime is judged on the mean logit of these fits
 ABLATION_GROUPS = ["meta_", "tag_", "role_", "team_", "player_", "pair_", "elo_", "series_"]
 
 
@@ -182,10 +183,13 @@ def _log(msg: str) -> None:
 
 
 def m3_next_action() -> None:
-    """Regime comparison, joint vs separate, ablations, each with one seed and 60 sampled negatives
-    per action (many fits, so the cheap setting). Saves per-action validation results and the
-    choices in na_summary.json; the model that is served is trained by m3_served."""
-    from .models.next_action import NextActionModel, exclude_baseline, fit_with_refit
+    """Regime comparison and ablations, all with 60 sampled negatives per action
+    (many fits, so the cheap setting). The regime choice decides what is served, and one fit of
+    a regime moves by about as much from seed to seed as the regimes differ, so each regime is
+    judged on the mean logit of REGIME_SEEDS fits; everything else uses the seed-0 fit. Saves
+    per-action validation results and the choices in na_summary.json; the model that is served
+    is trained by m3_served."""
+    from .models.next_action import NextActionModel, average_models, exclude_baseline, fit_with_refit
 
     data = ds.load()
     idx = split_indices(data)
@@ -194,23 +198,29 @@ def m3_next_action() -> None:
     summary: dict = {"runs": {}}
 
     def run(name, fit_idx, tune_idx=idx["tune"], **kw):
+        """One regime -> (seed-0 model, its validation result, the result of the seed average)."""
         t = time.time()
-        m = fit_with_refit(data, fit_idx, tune_idx, **kw)
-        r = m.evaluate(data, idx["val"])
-        save_result(f"na_{name}_val", r)
+        members = [fit_with_refit(data, fit_idx, tune_idx, seed=s, **kw) for s in REGIME_SEEDS]
+        singles = [x.evaluate(data, idx["val"]) for x in members]
+        avg = average_models(members).evaluate(data, idx["val"])
+        m, r = members[0], singles[0]
+        save_result(f"na_{name}_val", avg)
+        save_result(f"na_{name}_s0_val", r)
         summary["runs"][name] = {"stage1_best_iteration": m.stage1_best_iteration, "stage1_tune_logloss": m.stage1_tune_logloss,
                                  "refit_rounds": m.best_iteration, "temperature": m.temperature, "seconds": round(time.time() - t),
-                                 "n_fit_actions": int(len(fit_idx) + len(tune_idx)), **ev.next_action_metrics(r)}
+                                 "n_fit_actions": int(len(fit_idx) + len(tune_idx)), **ev.next_action_metrics(r),
+                                 "seed_log_loss": [ev.next_action_metrics(x)["log_loss"] for x in singles],
+                                 "average": ev.next_action_metrics(avg)}
         _log(f"{name}: {summary['runs'][name]}")
-        return m, r
+        return m, r, avg
 
     # (a) Fearless era only vs (b) all games with time decay and the regime flag (series_fearless)
     fit_era = idx["fit"][dt[idx["fit"]] >= era]
-    models, res = {}, {}
-    models["fearless_only"], res["fearless_only"] = run("gbm_fearless_only", fit_era)
-    models["all_decay365"], res["all_decay365"] = run("gbm_all_decay365", idx["fit"], half_life_days=365.0)
-    models["all_nodecay"], res["all_nodecay"] = run("gbm_all_nodecay", idx["fit"])
-    cmp_regime = ev.compare_table(res, "fearless_only", NA_METRICS, kind="next_action")
+    models, res, avg = {}, {}, {}
+    for key, fit_idx_, kw in (("fearless_only", fit_era, {}), ("all_decay365", idx["fit"], {"half_life_days": 365.0}),
+                              ("all_nodecay", idx["fit"], {})):
+        models[key], res[key], avg[key] = run(f"gbm_{key}", fit_idx_, **kw)
+    cmp_regime = ev.compare_table(avg, "fearless_only", NA_METRICS, kind="next_action")
     # keep (b) only if it beats (a) on log loss with a CI that excludes zero; (a) is the simpler choice
     row = cmp_regime[(cmp_regime.model == "all_decay365") & (cmp_regime.metric == "log_loss")].iloc[0]
     regime = "all_decay365" if row.verdict == "better" else "fearless_only"
@@ -219,23 +229,6 @@ def m3_next_action() -> None:
     regime_kw = {"half_life_days": 365.0} if regime == "all_decay365" else {}
     joint = models[regime]
     _log(f"regime chosen: {regime}")
-
-    # joint vs separate pick / ban models
-    is_pick = (data.actions["action_type"] == "pick").to_numpy()
-    sep_models, parts = {}, []
-    for typ, mask in (("pick", is_pick), ("ban", ~is_pick)):
-        t = time.time()
-        m = fit_with_refit(data, regime_fit[mask[regime_fit]], idx["tune"][mask[idx["tune"]]], **regime_kw)
-        sep_models[typ] = m
-        parts.append(m.evaluate(data, idx["val"][mask[idx["val"]]]))
-        summary["runs"][f"separate_{typ}"] = {"stage1_best_iteration": m.stage1_best_iteration, "refit_rounds": m.best_iteration,
-                                              "temperature": m.temperature, "seconds": round(time.time() - t)}
-    sep = pd.concat(parts).sort_values(["game_id", "action_index"]).reset_index(drop=True)
-    save_result("na_gbm_separate_val", sep)
-    cmp_sep = ev.compare_table({"joint": res[regime], "separate": sep}, "joint", NA_METRICS, kind="next_action")
-    use_separate = bool((cmp_sep[(cmp_sep.model == "separate") & (cmp_sep.metric == "log_loss")].verdict == "better").iloc[0])
-    summary["use_separate"] = use_separate
-    _log(f"separate models kept: {use_separate}")
 
     # ablations: drop one feature group, same recipe, fixed number of rounds (the joint model's)
     train_idx = np.sort(np.concatenate([regime_fit, idx["tune"]]))
@@ -257,6 +250,38 @@ def m3_next_action() -> None:
 
     (RESULTS / "na_summary.json").write_text(json.dumps(summary, indent=2, default=float))
     _log("next-action experiments done")
+
+
+def m3_separate() -> None:
+    """One joint model vs separate pick and ban models in the chosen regime, both as the mean
+    logit of REGIME_SEEDS fits (60 sampled negatives). Descriptive only: m3_served always trains
+    one joint model, so a win here is a lead to test with every candidate, not a switch."""
+    from .models.next_action import average_models, fit_with_refit
+
+    t = time.time()
+    data = ds.load()
+    idx = split_indices(data)
+    fit_idx, _, regime_kw, summary = _regime(data, idx)
+    is_pick = (data.actions["action_type"] == "pick").to_numpy()
+    members = {typ: [fit_with_refit(data, fit_idx[mask[fit_idx]], idx["tune"][mask[idx["tune"]]], seed=s, **regime_kw)
+                     for s in REGIME_SEEDS] for typ, mask in (("pick", is_pick), ("ban", ~is_pick))}
+
+    def combined(models: dict) -> pd.DataFrame:
+        parts = [models[typ].evaluate(data, idx["val"][mask[idx["val"]]]) for typ, mask in (("pick", is_pick), ("ban", ~is_pick))]
+        return pd.concat(parts).sort_values(["game_id", "action_index"]).reset_index(drop=True)
+
+    singles = [combined({typ: members[typ][i] for typ in members}) for i in range(len(REGIME_SEEDS))]
+    sep = combined({typ: average_models(members[typ]) for typ in members})
+    save_result("na_gbm_separate_val", sep)
+    joint = load_result(f"na_gbm_{summary['regime_choice']}_val")
+    cmp_sep = ev.compare_table({"joint": joint, "separate": sep}, "joint", NA_METRICS, kind="next_action")
+    summary["separate"] = {
+        "verdict": {r.metric: r.verdict for r in cmp_sep[cmp_sep.model == "separate"].itertuples()},
+        "seed_log_loss": [ev.next_action_metrics(r)["log_loss"] for r in singles],
+        "stage1_best_iteration": {typ: [m.stage1_best_iteration for m in ms] for typ, ms in members.items()},
+        "seconds": round(time.time() - t), **ev.next_action_metrics(sep)}
+    (RESULTS / "na_summary.json").write_text(json.dumps(summary, indent=2, default=float))
+    _log(f"separate pick/ban models: {summary['separate']}")
 
 
 # --------------------------------------------------------------------------------------
@@ -299,14 +324,14 @@ def m3_served(seeds: tuple[int, ...] = SERVED_SEEDS, workers: int | None = None)
     over seeds. The experiments in m3_next_action use 60 sampled negatives and one seed because
     they need many fits; this is the one model that gets the expensive treatment. Scores the
     validation and test splits and writes the importance table, the failure cases and the pickles.
-    One joint model is served; m3_next_action records whether separate pick/ban models tied."""
+    One joint model is served; m3_separate records how separate pick/ban models compare."""
     from concurrent.futures import ProcessPoolExecutor
 
     from .features import group_of
     from .models.next_action import average_models, group_softmax
 
     t = time.time()
-    workers = workers or min(len(seeds), 3)
+    workers = workers or 1  # fits on every candidate are memory-heavy: three at once swapped on a 24 GB machine
     threads = max(1, (os.cpu_count() or 4) // workers)
     with ProcessPoolExecutor(workers) as pool:
         fitted = list(pool.map(_served_seed, seeds, [threads] * len(seeds)))
@@ -631,9 +656,14 @@ def _averaged(score_list: list[np.ndarray]) -> np.ndarray:
 
 
 def exp_build() -> None:
-    """Features with the current code into the experiment directory (the main features stay as they are)."""
+    """Features into the experiment directory, with the targeted-ban player features that the main
+    build leaves out (the main features stay as they are)."""
+    from .features import build_engine
+
     t = time.time()
-    data, _, _ = ds.build(out_dir=EXP_FEATURES)
+    engine = build_engine()
+    engine.by_name["player"].targeted_bans = True
+    data, _, _ = ds.build(engine=engine, out_dir=EXP_FEATURES)
     print(f"built in {time.time() - t:.0f}s: {len(data.cand_names)} candidate + {len(data.ctx_names)} context features")
 
 
@@ -802,6 +832,7 @@ def tuning_report(seeds=(0, 1, 2)) -> None:
 
 def m3() -> None:
     m3_next_action()
+    m3_separate()
     m3_pair_split()
     m3_served()
     m3_win()
@@ -810,7 +841,7 @@ def m3() -> None:
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
-    {"build": build, "m2": m2, "m3": m3, "m3na": m3_next_action, "m3pair": m3_pair_split, "m3served": m3_served, "m3win": m3_win,
+    {"build": build, "m2": m2, "m3": m3, "m3na": m3_next_action, "m3sep": m3_separate, "m3pair": m3_pair_split, "m3served": m3_served, "m3win": m3_win,
      "pack": pack_models, "history": lambda: history_variants(sys.argv[2:] or None),
      "seeds": regime_seed_check, "expbuild": exp_build,
      "player": lambda: (player_report() if sys.argv[2] == "report" else

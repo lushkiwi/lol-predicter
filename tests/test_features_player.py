@@ -154,7 +154,7 @@ def test_shapes_names_finite():
                 names, X = v
                 assert X.shape[0] == CH.C and np.all(np.isfinite(X))
     names = res["g3"][0][0]
-    assert sum(n.startswith("player_") for n in names) == 22
+    assert sum(n.startswith("player_") for n in names) == 18
 
 
 def test_bans_follow_the_player_to_a_new_team():
@@ -162,7 +162,8 @@ def test_bans_follow_the_player_to_a_new_team():
     g1 = mk("g1", 100.0)
     x_players = ("B0", "X1", "X2", "X3", "X4")
     g2 = mk("g2", 101.0, blue_team="A", red_team="X", players=(tuple(f"A{i}" for i in range(5)), x_players))
-    res = run([g1, g2], ks=(0,))
+    res = run([g1, g2], ks=(0,), targeted_bans=True)
+    assert sum(n.startswith("player_") for n in res["g2"][0][0]) == 22  # 4 more than the default block
     vs = col(res, "g2", 0, "player_banned_vs_opp")  # blue acts first: the opponent is X
     focus = col(res, "g2", 0, "player_ban_focus_opp")
     assert all(vs[c] > 0 for c in (11, 12, 13, 14, 15)) and vs[16] == 0 and vs[1] == 0
@@ -172,7 +173,7 @@ def test_bans_follow_the_player_to_a_new_team():
     assert math.isclose(focus[1], (d + 0.2) / (d + 1.0) * d / (d + 5.0), rel_tol=1e-5)
     # without B0 in the line-up nothing is known about bans against X
     g2b = mk("g2", 101.0, blue_team="A", red_team="X")
-    assert np.all(col(run([g1, g2b], ks=(0,)), "g2", 0, "player_banned_vs_opp") == 0)
+    assert np.all(col(run([g1, g2b], ks=(0,), targeted_bans=True), "g2", 0, "player_banned_vs_opp") == 0)
 
 
 def test_pool_pinch_reacts_to_burns_and_bans():

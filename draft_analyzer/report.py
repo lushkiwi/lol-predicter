@@ -137,15 +137,15 @@ def m3() -> None:
             "over the available candidates (custom objective; outputs are probabilities). Evaluation always uses every "
             f"available champion (about {data.actions.n_cand.mean():.0f} per action).\n",
             f"Two training settings are used. The **experiments** (regimes, joint vs separate, ablations: sections 1.2 "
-            f"to 1.4) need many fits, so each is one model trained on 60 sampled negatives per action with an "
-            f"importance-weight correction. The **final model** (sections 1.1 and 1.5 to 1.8, the CLI and the web UI) "
+            f"to 1.4) need many fits, so they train on 60 sampled negatives per action with an importance-weight "
+            f"correction, and all but the regime comparison use one fit. The **final model** (sections 1.1 and 1.5 to 1.8, the CLI and the web UI) "
             f"uses the regime chosen there (**{summ['regime_choice']}**), trains on every candidate and is the mean "
             f"logit of {len(served['seeds'])} fits with different seeds; both changes were chosen in "
             f"`reports/tuning.md`. It is one joint model for picks and bans.\n",
             "### 1.1 Final model vs baselines\n",
             md(_verdict_note(ev.compare_table({"B_presence_team": B, "A_presence": A, "model": F}, "B_presence_team", NA_METRICS))), "",
             "Final model against the single experiment model of the same regime (`diff` is final minus experiment):\n",
-            md(_verdict_note(ev.compare_table({"experiment_single": load_result(f"na_gbm_{summ['regime_choice']}_val"), "final": F},
+            md(_verdict_note(ev.compare_table({"experiment_single": load_result(f"na_gbm_{summ['regime_choice']}_s0_val"), "final": F},
                                               "experiment_single", NA_METRICS))), "",
             "The fits behind the final model, one per seed (validation): " + ", ".join(
                 f"log loss {m['log_loss']:.4f} / top-1 {m['top1']:.1%}" for m in served["val_single"]) + ".\n",
@@ -170,7 +170,11 @@ def m3() -> None:
             "- **all_decay365**: train on all games (2024 included) with time-decay weights (half-life 365 days); the "
             "Fearless mode is a feature (`series_fearless`).",
             "- **all_nodecay**: all games, equal weights (extra reference).\n",
+            "One fit of a regime moves by about as much from seed to seed as the regimes differ, so each regime here is "
+            "the mean logit of 3 fits with different seeds. Log loss of the single fits: " + "; ".join(
+                f"{k[4:]} " + " / ".join(f"{x:.4f}" for x in v["seed_log_loss"]) for k, v in runs.items() if "seed_log_loss" in v) + ".\n",
             md(_verdict_note(ev.compare_table(reg, "fearless_only", NA_METRICS))), "",
+            "Seed-0 fit of each regime (`seconds` covers all three fits):\n",
             md(pd.DataFrame([{"run": k, "train_actions": v.get("n_fit_actions"), "early_stop_round": v.get("stage1_best_iteration"),
                               "tune_log_loss": v.get("stage1_tune_logloss"), "seconds": v.get("seconds")}
                              for k, v in runs.items() if k.startswith("gbm_")])), "",
@@ -178,11 +182,20 @@ def m3() -> None:
             f"zero. Kept: **{summ['regime_choice']}**.\n"]
 
     # joint vs separate
+    from .experiments import _phase_table
     sep = load_result("na_gbm_separate_val")
-    joint = reg[summ["regime_choice"]]
+    joint_avg = reg[summ["regime_choice"]]
+    sv = summ["separate"]["verdict"]
     out += ["### 1.3 One joint model vs separate pick and ban models\n",
-            md(_verdict_note(ev.compare_table({"joint": joint, "separate": sep}, "joint", NA_METRICS))), "",
-            f"Separate models kept: **{summ['use_separate']}** (they are kept only if they win on log loss).\n"]
+            "Both sides are the mean logit of 3 fits (single fits of the separate models, log loss: "
+            + " / ".join(f"{x:.4f}" for x in summ["separate"]["seed_log_loss"]) + ").\n",
+            md(_verdict_note(ev.compare_table({"joint": joint_avg, "separate": sep}, "joint", NA_METRICS))), "",
+            "By draft phase:\n", md(_phase_table({"joint": joint_avg, "separate": sep}, "joint")), "",
+            f"Separate models against the joint model: log loss **{sv['log_loss']}**, top-1 **{sv['top1']}**. The final "
+            "model is one joint model in either case: this comparison uses the sampled setting, and separate models "
+            "would have to win again when trained on every candidate before they are served. That comparison has not "
+            "been run (see the open questions in `docs/REPORT.md`).\n"]
+    joint = load_result(f"na_gbm_{summ['regime_choice']}_s0_val")  # the seed-0 fit: the reference for the ablations
 
     # ablation
     rows = []

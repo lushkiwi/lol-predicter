@@ -12,7 +12,7 @@ Phases 1 to 3 of `lol-tool.md` are built (pro data only, no Riot API, no LLM). R
 | Validation (651 games, 240 series) | Top-1 | Top-5 | Top-10 | Log loss |
 |---|---|---|---|---|
 | Baseline: patch presence + team frequency | 12.0% | 39.6% | 58.1% | 3.528 |
-| Next-action model | 27.5% | 66.2% | 83.2% | 2.558 |
+| Next-action model | 28.2% | 67.0% | 83.3% | 2.528 |
 
 The win model is a tie with the Elo + side + first-pick baseline (log loss 0.6369 vs 0.6415); the draft effect it
 reports is not statistically supported, and the CLI and web UI label it that way.
@@ -43,12 +43,16 @@ Every network response is cached on disk and never re-downloaded.
 .venv/bin/python -m draft_analyzer.experiments m2          # reports/M2_baselines.md
 
 # 3. Models
-.venv/bin/python -m draft_analyzer.experiments m3          # ~30 min: regimes, ablations, win model, live refit
+.venv/bin/python -m draft_analyzer.experiments m3          # ~1 h 45: regimes, ablations, final + live models, win model
 .venv/bin/python -m draft_analyzer.report m3               # reports/M3_models.md
 
 .venv/bin/python -m draft_analyzer.experiments history     # optional, ~15 min: reports/history_leagues.md
+.venv/bin/python -m draft_analyzer.experiments expbuild    # optional: accuracy experiments, see reports/tuning.md
+.venv/bin/python -m draft_analyzer.experiments player fit base,target,pinch,both
+.venv/bin/python -m draft_analyzer.experiments player report
+.venv/bin/python -m draft_analyzer.experiments tune         # hyperparameter search on the tune period
 
-.venv/bin/python -m pytest                                  # 109 tests
+.venv/bin/python -m pytest                                  # 112 tests
 ```
 
 Leagues and seasons are set in `draft_analyzer/config.py`, or with `DRAFT_LEAGUES="LCK,LPL"` and
@@ -68,7 +72,7 @@ with their three main factors (hover a row for the full breakdown down to single
 chess-style evaluation bar for win probability, with a graph over the draft. League, patch and Fearless mode
 are behind the summary at the top left. When a draft is complete the grid is replaced by a recap of how the
 model rated each action; record the winner and the next game of the series starts with the Fearless burns
-applied. The server runs on localhost only and keeps the models in memory (about 50 ms per prediction).
+applied. The server runs on localhost only and keeps the models in memory (about 0.25 s per prediction).
 Champion icons are fetched from Data Dragon once and cached in `data/raw/ddragon/img/`.
 
 ## Predicting from the command line
@@ -111,9 +115,12 @@ names in draft order, `null` for a missed ban). Earlier games of the series come
   (`reports/history_leagues.md`).
 - **Stat blocks** (`features/`): champion meta (patch presence shrunk toward a long-run prior, draft-position
   rates, win rate relative to Elo expectation), role distributions and open-role fit, team tendencies, player
-  mastery, pairwise synergy and counters, Elo, and series context (Fearless burns, earlier bans, score).
+  mastery and how much of each player's pool is still available, pairwise synergy and counters, Elo, and series
+  context (Fearless burns, earlier bans, score).
 - **Next-action model** (`models/next_action.py`): LightGBM scoring each available champion, trained with a
-  listwise softmax objective so outputs are probabilities. Trained on all games with a 365-day time decay.
+  listwise softmax objective so outputs are probabilities. Trained on all games with a 365-day time decay, on
+  every candidate, and served as the mean logit of three fits with different seeds (`reports/tuning.md`). The
+  final fits are memory-heavy (three at once swapped on a 24 GB machine) and run one at a time.
 - **Win model** (`models/win.py`): logistic regression on Elo, side, first pick and draft features, trained on
   partial drafts so it works at any point.
 - **Evaluation** (`evaluate.py`): time-based splits by series; every comparison is a paired bootstrap over series

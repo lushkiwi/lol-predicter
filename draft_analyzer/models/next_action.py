@@ -120,7 +120,9 @@ class NextActionModel:
             p = group_softmax(preds + offsets, starts, sizes)
             return (p - y) * gw, np.maximum(p * (1.0 - p), 1e-6) * gw
 
-        dtrain = lgb.Dataset(X, label=y, feature_name=self.features, free_raw_data=True)
+        dtrain = lgb.Dataset(X, label=y, feature_name=self.features, params=params, free_raw_data=True)
+        dtrain.construct()
+        del X  # only the binned copy is needed from here; with every candidate the raw matrix is several GB
         params["objective"] = fobj
         callbacks, valid_sets, feval = [], [], None
         if tune_idx is not None:
@@ -217,14 +219,16 @@ def average_models(models: list[NextActionModel]) -> NextActionModel:
 
 
 def fit_with_refit(data: NextActionData, fit_idx: np.ndarray, tune_idx: np.ndarray, verbose: int = 0,
-                   refit_rounds_scale: float = 1.1, **kwargs) -> NextActionModel:
+                   refit_rounds_scale: float = 1.1, seed: int = 0, **kwargs) -> NextActionModel:
     """Standard recipe: early-stop on the tune period, then refit on fit+tune with the chosen
     number of rounds (scaled up slightly for the larger training set). Temperatures come from
-    the first stage, where the tune period was held out."""
-    stage1 = NextActionModel(**kwargs).fit(data, fit_idx, tune_idx, verbose=verbose)
+    the first stage, where the tune period was held out. ``seed`` drives both the negative
+    sampling and LightGBM."""
+    kwargs = {**kwargs, "params": {**kwargs.get("params", {}), "seed": seed}}
+    stage1 = NextActionModel(**kwargs).fit(data, fit_idx, tune_idx, seed=seed, verbose=verbose)
     rounds = int(round(stage1.best_iteration * refit_rounds_scale))
     final = NextActionModel(**kwargs)
-    final.fit(data, np.sort(np.concatenate([fit_idx, tune_idx])), None, num_rounds=rounds)
+    final.fit(data, np.sort(np.concatenate([fit_idx, tune_idx])), None, num_rounds=rounds, seed=seed)
     final.temperature = dict(stage1.temperature)
     final.history = stage1.history
     final.stage1_best_iteration = stage1.best_iteration
