@@ -52,7 +52,7 @@ Every network response is cached on disk and never re-downloaded.
 .venv/bin/python -m draft_analyzer.experiments player report
 .venv/bin/python -m draft_analyzer.experiments tune         # hyperparameter search on the tune period
 
-.venv/bin/python -m pytest                                  # 113 tests
+.venv/bin/python -m pytest                                  # 114 tests
 ```
 
 Leagues and seasons are set in `draft_analyzer/config.py`, or with `DRAFT_LEAGUES="LCK,LPL"` and
@@ -71,8 +71,8 @@ large with their probability), the other available ones and the unavailable ones
 with their three main factors (hover a row for the full breakdown down to single features); and moves a
 chess-style evaluation bar for win probability, with a graph over the draft. League, patch and Fearless mode
 are behind the summary at the top left. Picks fill the team columns as splash art, and each candidate's main
-reasons are given in words ("high priority this patch", "fits an open role"), with the numbers in the hover
-card. When a draft is complete the grid is replaced by a recap of how the model rated each action; record the
+reasons are given in words that name the team and the fact behind them ("T1 picked it lately", "pairs with
+Gen.G's picks"), with the numbers in the hover card. When a draft is complete the grid is replaced by a recap of how the model rated each action; record the
 winner and the next game of the series starts with the Fearless burns applied. Below 860 px wide the page
 becomes one scrolling column with the two teams side by side. The previous look is kept at `/classic` for
 comparison. The server runs on localhost only and keeps the models in memory (about 0.25 s per prediction).

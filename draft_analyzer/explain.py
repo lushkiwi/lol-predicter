@@ -47,6 +47,9 @@ def explain_next_action(model, X: np.ndarray, cand_ids: np.ndarray, champion_nam
     G = np.stack([phi[:, idx].sum(axis=1) for idx in groups.values()], axis=1)  # (n, n_groups)
     G_rel = G - (p[:, None] * G).sum(axis=0, keepdims=True)
     phi_rel = phi - (p[:, None] * phi).sum(axis=0, keepdims=True)
+    # the field each candidate is compared with, feature by feature: like the relative SHAP values,
+    # the available champions weighted by how likely each one is
+    field = (p[:, None] * np.asarray(X, dtype=float)).sum(axis=0)
     order = np.argsort(-p)[:top_k]
     out = []
     for rank, i in enumerate(order, 1):
@@ -61,6 +64,7 @@ def explain_next_action(model, X: np.ndarray, cand_ids: np.ndarray, champion_nam
                 "shap_raw": round(float(G[i, gi]), 4),
                 "direction": "for" if G_rel[i, gi] > 0 else "against",
                 "features": [{"name": model.features[j], "value": round(float(X[i, j]), 4),
+                              "field_mean": round(float(field[j]), 4),
                               "shap_relative": round(float(phi_rel[i, j]), 4)} for j in feat_order],
             })
         out.append({"rank": rank, "champion": champion_names[int(cand_ids[i])], "probability": round(float(p[i]), 4),

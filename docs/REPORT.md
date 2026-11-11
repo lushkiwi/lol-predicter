@@ -267,7 +267,8 @@ taken (Orianna 7 times in the top 15, Milio 3 times); the actual choice was rank
 - `explain.py` sums SHAP values within feature groups and exports the top groups per prediction as JSON with the
   raw feature values underneath. The next-action model uses LightGBM's exact TreeSHAP; the win model uses the
   closed-form linear SHAP. For candidates, contributions are reported relative to the probability-weighted
-  field, so context shared by all candidates cancels.
+  field, so context shared by all candidates cancels; each feature also carries the field's weighted mean
+  value, which the web page uses to say in words whether a champion is above or below the field on it.
 - `predict.py` has both modes from the spec. Replay uses the validated model with features as-of the game; live
   mode uses a refit on all data and accepts earlier games of the series either from the dataset or inline in the
   state file. Both were run end to end.

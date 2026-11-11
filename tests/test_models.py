@@ -137,6 +137,28 @@ def test_seed_average_serves_the_mean_logit_and_explains_it_exactly():
     assert models[0].members == [] and len(avg.members) == 2
 
 
+def test_explanation_compares_each_feature_with_the_weighted_field():
+    from draft_analyzer.explain import explain_next_action
+
+    data = toy_data(n_actions=300, n_cand=12)
+    m = NextActionModel(neg_per_action=6, params={"min_data_in_leaf": 20, "num_leaves": 7, "learning_rate": 0.1})
+    m.fit(data, np.arange(0, 250), None, num_rounds=30)
+    rows = rows_of(data, np.array([260]))
+    X, ids = data.matrix(rows, m.features), data.row_champ[rows]
+    names = [f"c{i}" for i in range(int(data.row_champ.max()) + 1)]
+    out = explain_next_action(m, X, ids, names, "pick", top_k=3, all_probs=True)
+    prob = {d["champion"]: d["probability"] for d in out["probabilities"]}
+    weights = np.array([prob[names[int(c)]] for c in ids])
+    field = (weights[:, None] * X).sum(axis=0) / weights.sum()
+    for cand in out["candidates"]:
+        row = int(np.flatnonzero(ids == names.index(cand["champion"]))[0])
+        for factor in cand["top_factors"]:
+            for feat in factor["features"]:
+                j = m.features.index(feat["name"])
+                assert feat["value"] == pytest.approx(float(X[row, j]), abs=1e-3)
+                assert feat["field_mean"] == pytest.approx(float(field[j]), abs=2e-3)
+
+
 def test_win_model_contributions_are_additive():
     rng = np.random.default_rng(0)
     n = 2000

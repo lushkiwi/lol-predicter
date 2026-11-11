@@ -14,9 +14,9 @@ const REASON = {
   'champion meta strength': ['high priority this patch', 'low priority this patch'],
   'player comfort': ['player comfort', 'low player comfort'],
   'role fit': ['fits an open role', 'poor role fit'],
-  'synergy/counter': ['often drafted with these', 'rarely drafted with these'],
+  'synergy/counter': ['goes with what’s drafted', 'clashes with what’s drafted'],
   'team tendency': ['these teams favour it', 'not these teams’ habit'],
-  'draft context': ['usual at this point', 'unusual at this point'],
+  'draft context': ['suits this stage', 'doesn’t suit this stage'],
   'series context': ['series so far favours it', 'series so far counts against'],
   'team strength': ['team strength', 'team strength counts against'],
   'champion attributes': ['champion type fits', 'champion type fits less'],
@@ -33,6 +33,58 @@ const GROUP_LABEL = {
   'champion attributes': 'Champion type',
 };
 const groupLabel = (g) => GROUP_LABEL[g] || g;
+// What one feature says about a champion, in words: [when it is above the field on that
+// feature, when it is below]. The field is the available champions weighted by how likely each
+// is, the same comparison the factor numbers use. {A} is the team acting now, {O} its opponent.
+// A reason uses a fact only when the fact points the way the reason does (above the field and
+// counting for, or below it and counting against); otherwise it falls back to REASON.
+const FACT = {
+  team_pick_rate_own: ['{A} pick it often', '{A} rarely pick it'],
+  team_pick_rate_own_recent: ['{A} picked it lately', '{A} haven’t picked it lately'],
+  team_pick_rate_opp: ['{O} pick it often', '{O} rarely pick it'],
+  team_pick_rate_opp_recent: ['{O} picked it lately', '{O} haven’t picked it lately'],
+  team_ban_rate_own: ['{A} often ban it', '{A} rarely ban it'],
+  team_ban_rate_opp: ['{O} often ban it', '{O} rarely ban it'],
+  team_banned_against_own: ['often banned against {A}', 'rarely banned against {A}'],
+  team_banned_against_opp: ['often banned against {O}', 'rarely banned against {O}'],
+  player_games_own: ['a {A} comfort pick', 'not a {A} comfort pick'],
+  player_games_own_max: ['a {A} comfort pick', 'not a {A} comfort pick'],
+  player_career_own: ['a {A} comfort pick', 'not a {A} comfort pick'],
+  player_share_own: ['a {A} comfort pick', 'not a {A} comfort pick'],
+  player_win_resid_own: ['{A} players win on it', '{A} players struggle on it'],
+  player_pool_share_left_own: ['much of {A}’s remaining pool', 'little of {A}’s remaining pool'],
+  player_games_opp: ['a {O} comfort pick', 'not a {O} comfort pick'],
+  player_games_opp_max: ['a {O} comfort pick', 'not a {O} comfort pick'],
+  player_career_opp: ['a {O} comfort pick', 'not a {O} comfort pick'],
+  player_share_opp: ['a {O} comfort pick', 'not a {O} comfort pick'],
+  player_win_resid_opp: ['{O} players win on it', '{O} players struggle on it'],
+  player_pool_share_left_opp: ['much of {O}’s remaining pool', 'little of {O}’s remaining pool'],
+  meta_presence: ['popular this patch', 'unpopular this patch'],
+  meta_presence_patch_raw: ['popular this patch', 'unpopular this patch'],
+  meta_presence_recent: ['popular lately', 'out of favour lately'],
+  meta_presence_long: ['a long-time priority', 'rarely a priority'],
+  meta_presence_league: ['popular in this league', 'unpopular in this league'],
+  meta_pick_rate: ['picked a lot this patch', 'rarely picked this patch'],
+  meta_ban_rate: ['banned a lot this patch', 'rarely banned this patch'],
+  meta_rate_type_pick: ['picked a lot this patch', 'rarely picked this patch'],
+  meta_rate_type_ban: ['banned a lot this patch', 'rarely banned this patch'],
+  meta_rate_phase_slot: ['often taken at this stage', 'rarely taken at this stage'],
+  meta_rate_action: ['often taken at this turn', 'rarely taken at this turn'],
+  meta_win_resid: ['wins more than expected', 'wins less than expected'],
+  meta_win_resid_patch: ['winning this patch', 'losing this patch'],
+  role_fit_own: ['fills a role {A} need', '{A} have that role covered'],
+  role_fit_opp: ['fills a role {O} need', '{O} have that role covered'],
+  pair_colift_own: ['pairs with {A}’s picks', 'rarely paired with {A}’s picks'],
+  pair_colift_opp: ['pairs with {O}’s picks', 'rarely paired with {O}’s picks'],
+  pair_vslift_opp: ['often drafted into {O}’s picks', 'rarely drafted into {O}’s picks'],
+  pair_vslift_own: ['often drafted into {A}’s picks', 'rarely drafted into {A}’s picks'],
+  pair_syn_own: ['wins with {A}’s picks', 'loses with {A}’s picks'],
+  pair_syn_opp: ['wins with {O}’s picks', 'loses with {O}’s picks'],
+  pair_ctr_vs_opp: ['beats {O}’s picks', 'loses to {O}’s picks'],
+  pair_ctr_vs_own: ['beats {A}’s picks', 'loses to {A}’s picks'],
+  series_ban_own_prev: ['{A} banned it earlier this series', null],
+  series_ban_opp_prev: ['{O} banned it earlier this series', null],
+};
 
 let META = null;            // GET /api/meta
 let ORDER = [];             // META.draft_order
@@ -966,20 +1018,44 @@ function renderRecap() {
 
 /* ---------- predictions panel ---------- */
 
+// One factor group in words. The specific version states a fact about the feature that drives
+// the group (the strongest one pushing the same way as the group) and how the champion compares
+// with the field on it; without a fitting fact it falls back to the group's stock phrase.
+function reasonWords(f, actionType, acting) {
+  const pos = f.shap_relative >= 0;
+  const driver = (f.features || []).find((x) => (x.shap_relative >= 0) === pos);
+  if (driver && driver.field_mean != null && typeof driver.value === 'number') {
+    const key = driver.name === 'meta_rate_type' ? `meta_rate_type_${actionType}` : driver.name;
+    const diff = driver.value - driver.field_mean;
+    const agrees = Math.abs(diff) > 1e-6 && (diff > 0) === pos;
+    const fact = FACT[key] && agrees ? FACT[key][pos ? 0 : 1] : null;
+    if (fact) return fact.replace('{A}', teamName(acting)).replace('{O}', teamName(other(acting)));
+  }
+  return (REASON[f.group] || [f.group, 'less ' + f.group])[pos ? 0 : 1];
+}
+const capFirst = (t) => t[0].toUpperCase() + t.slice(1);
+
 // what speaks for the champion first, then what speaks against it; strongest first within each
-function reasons(c) {
+function reasons(c, actionType, acting) {
   const fs = sortedFactors(c);
   const ordered = fs.filter((f) => f.shap_relative >= 0).concat(fs.filter((f) => f.shap_relative < 0));
-  return ordered.slice(0, 3).map((f, k) => {
-    const pos = f.shap_relative >= 0;
-    const words = (REASON[f.group] || [f.group, 'less ' + f.group])[pos ? 0 : 1];
-    return el('span', 'reason ' + (pos ? 'for' : 'against'), k ? words : words[0].toUpperCase() + words.slice(1));
-  });
+  const seen = new Set();
+  const out = [];
+  for (const f of ordered) {
+    const words = reasonWords(f, actionType, acting);
+    if (seen.has(words)) continue;
+    seen.add(words);
+    out.push(el('span', 'reason ' + (f.shap_relative >= 0 ? 'for' : 'against'), out.length ? words : capFirst(words)));
+    if (out.length === 3) break;
+  }
+  return out;
 }
 
 function renderPreds() {
   const list = $('predList');
   const before = booted ? rectsOf(list.querySelectorAll('.pred')) : null;
+  const widthBefore = new Map();
+  list.querySelectorAll('.pred').forEach((li) => widthBefore.set(li.dataset.name, li.querySelector('.pred-bar i').style.width));
   list.textContent = '';
   const errBox = $('predError');
   errBox.hidden = !apiError;
@@ -1016,12 +1092,21 @@ function renderPreds() {
     bar.appendChild(fill);
     top.append(el('span', 'pred-name', c.champion), bar, el('span', 'pred-pct', pct(c.probability)));
     const why = el('div', 'pred-why');
-    why.append(...reasons(c));
+    why.append(...reasons(c, na.action_type, side));
     body.append(top, why);
     li.appendChild(body);
     list.appendChild(li);
   }
-  if (fresh && movedFor.preds !== String(i)) { movedFor.preds = String(i); slideFrom(before, list.children); }
+  if (fresh && movedFor.preds !== String(i)) {
+    movedFor.preds = String(i);
+    slideFrom(before, list.children);
+    if (!REDUCED_MOTION && before && before.size) {
+      for (const li of list.children) {
+        const bar = li.querySelector('.pred-bar i');
+        if (bar && bar.animate) bar.animate([{ width: widthBefore.get(li.dataset.name) || '0%' }, { width: bar.style.width }], { duration: 420, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+      }
+    }
+  }
 }
 function sortedFactors(c) {
   return (c.top_factors || []).slice().sort((a, b) => Math.abs(b.shap_relative) - Math.abs(a.shap_relative));
@@ -1039,6 +1124,8 @@ function showWhy(anchor) {
   const card = $('why');
   const c = candidate(anchor.dataset.name);
   if (!c) { hideWhy(); return; }
+  if (!card.hidden && card.dataset.name === c.champion) return;
+  card.dataset.name = c.champion;
   const na = R.next_action;
   const side = sideOf(nextIndex());
   card.textContent = '';
@@ -1048,7 +1135,7 @@ function showWhy(anchor) {
     el('div', 'muted small', `Rank ${c.rank} of ${na.n_candidates} for ${teamName(side)}'s ${na.action_type}`));
   head.append(icon(c.champion, 'why-icon'), ttl, el('div', 'why-pct', pct(c.probability)));
   card.appendChild(head);
-  card.appendChild(el('div', 'why-sub', 'Compared with the average available champion'));
+  card.appendChild(el('div', 'why-sub', 'Compared with the other likely choices'));
   const factors = sortedFactors(c);
   const scale = Math.max(0.5, ...factors.map((f) => Math.abs(f.shap_relative)));
   for (const f of factors) {
@@ -1060,6 +1147,7 @@ function showWhy(anchor) {
     track.appendChild(fill);
     row.append(el('span', 'why-group', groupLabel(f.group)), track, el('b', pos ? 'for' : 'against', signed(f.shap_relative)));
     card.appendChild(row);
+    card.appendChild(el('div', 'why-words', capFirst(reasonWords(f, na.action_type, side))));
     const feats = el('div', 'why-feats');
     (f.features || []).slice(0, 3).forEach((x) => {
       const line = el('div', 'why-feat');
@@ -1081,7 +1169,7 @@ function showWhy(anchor) {
   card.style.left = Math.round(left) + 'px';
   card.style.top = Math.round(top) + 'px';
 }
-function hideWhy() { $('why').hidden = true; }
+function hideWhy() { $('why').hidden = true; $('why').dataset.name = ''; }
 
 function fmtNum(v) {
   if (typeof v !== 'number') return String(v);
@@ -1089,6 +1177,23 @@ function fmtNum(v) {
 }
 
 /* ---------- win probability ---------- */
+
+let shownPb = null;   // the blue win probability the numbers currently show
+let pbFrame = 0;
+// set every blue/red percentage on the page to p, counting from the value shown before
+function countWinTo(p, paint) {
+  cancelAnimationFrame(pbFrame);
+  const from = shownPb == null || REDUCED_MOTION ? p : shownPb;
+  const t0 = performance.now();
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / 600);
+    const e = 1 - Math.pow(1 - k, 3);
+    shownPb = from + (p - from) * e;
+    paint(shownPb);
+    if (k < 1) pbFrame = requestAnimationFrame(step);
+  };
+  if (Math.abs(p - from) < 0.0005) { shownPb = p; paint(p); } else pbFrame = requestAnimationFrame(step);
+}
 
 function renderWin() {
   const w = R && R.win;
@@ -1105,17 +1210,22 @@ function renderWin() {
   const pb = w.p_blue_win;
   $('evalbar').style.setProperty('--pb', (pb * 100).toFixed(2));
   $('evalbar').style.setProperty('--base', (w.p_blue_win_baseline * 100).toFixed(2));
-  $('evalBluePct').textContent = Math.round(pb * 100) + '%';
-  $('evalRedPct').textContent = Math.round((1 - pb) * 100) + '%';
   $('evalBase').title = `Baseline (team strength + side + first pick): ${blueName} ${pct(w.p_blue_win_baseline)}`;
   $('evalbar').title = `${blueName} ${pct(pb)} · ${redName} ${pct(1 - pb)}\nLight tick = baseline ${pct(w.p_blue_win_baseline)} (team strength, side, first pick)\n\n${META.win_note}`;
 
   const row = el('div', 'win-row');
   const bt = el('div', 'win-team blue');
-  bt.append(el('span', 'win-name', blueName), el('span', 'win-pct', pct(pb)));
+  const bluePct = el('span', 'win-pct'), redPct = el('span', 'win-pct');
+  bt.append(el('span', 'win-name', blueName), bluePct);
   const rt = el('div', 'win-team red');
-  rt.append(el('span', 'win-name', redName), el('span', 'win-pct', pct(w.p_red_win)));
+  rt.append(el('span', 'win-name', redName), redPct);
   row.append(bt, rt);
+  countWinTo(pb, (p) => {
+    bluePct.textContent = pct(p);
+    redPct.textContent = pct(1 - p);
+    $('evalBluePct').textContent = Math.round(p * 100) + '%';
+    $('evalRedPct').textContent = Math.round((1 - p) * 100) + '%';
+  });
 
   // where the number comes from: the baseline, then the draft's (unvalidated) shift
   const eff = w.draft_effect_blue;
