@@ -99,3 +99,42 @@ def test_page_and_assets_are_served(client):
 def test_splash_art_only_for_known_champions(client):
     # only known champion ids are ever fetched from Data Dragon
     assert client.get("/img/splash/NotAChampion.jpg").status_code == 404
+
+
+def test_answers_are_remembered_and_bodies_are_bounded(client, state):
+    s = {**state, "actions": ["Azir"]}
+    first = client.post("/api/predict", json=s)
+    again = client.post("/api/predict", json=s)
+    assert first.status_code == again.status_code == 200
+    assert again.headers["x-answer"] == "remembered" and again.content == first.content
+    assert client.post("/api/predict", json={**s, "actions": ["Vi"]}).headers["x-answer"] == "computed"
+    assert client.post("/api/predict", json={**s, "padding": "x" * 70_000}).status_code == 413
+    assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_rate_limiter_gives_each_address_its_own_budget():
+    from draft_analyzer.web.server import RateLimiter
+
+    lim = RateLimiter(per_minute=6)  # one request every 10 s, bursts of 6
+    assert [lim.wait_seconds("a", now=0.0) for _ in range(6)] == [0.0] * 6
+    assert lim.wait_seconds("a", now=0.0) == pytest.approx(10.0)
+    assert lim.wait_seconds("b", now=0.0) == 0.0             # another address is unaffected
+    assert lim.wait_seconds("a", now=4.0) == pytest.approx(6.0)
+    assert lim.wait_seconds("a", now=10.5) == 0.0            # one token is back
+    assert lim.wait_seconds("a", now=10.5) > 0
+    assert RateLimiter(per_minute=0).wait_seconds("a", now=0.0) == 0.0  # 0 = no limit
+
+
+def test_visitor_address_comes_from_the_proxy_only_when_trusted(monkeypatch):
+    from types import SimpleNamespace
+
+    from draft_analyzer.web.server import client_address
+
+    req = SimpleNamespace(headers={"x-real-ip": "203.0.113.9", "x-forwarded-for": "1.2.3.4, 198.51.100.2"},
+                          client=SimpleNamespace(host="10.0.0.1"))
+    monkeypatch.delenv("TRUST_PROXY", raising=False)
+    assert client_address(req) == "10.0.0.1"                  # a visitor cannot pick their own address
+    monkeypatch.setenv("TRUST_PROXY", "1")
+    assert client_address(req) == "203.0.113.9"
+    req.headers = {"x-forwarded-for": "1.2.3.4, 198.51.100.2"}
+    assert client_address(req) == "198.51.100.2"              # the entry the proxy appended, not the visitor's

@@ -1,15 +1,17 @@
-pandas>=2.2
-pyarrow
-numpy
-scikit-learn
-lightgbm
-shap
-gdown
-mwclient
-requests
-python-dotenv
-matplotlib
-pytest
-fastapi
-uvicorn
-httpx
+# Everything: ingestion, training, reports, tests and the web UI. Versions are the ones the
+# saved models were built and tested with; the pickles are not guaranteed to load under others.
+pandas==3.1.1
+pyarrow==26.0.1
+numpy==2.5.4
+scikit-learn==1.9.1
+lightgbm==4.7.0
+shap==0.54.1
+gdown==6.5.1
+mwclient==0.11.0
+requests==2.34.2
+python-dotenv==1.2.4
+matplotlib==3.11.2
+pytest==9.2.0
+fastapi==0.162.4
+uvicorn==0.54.0
+httpx==0.28.1

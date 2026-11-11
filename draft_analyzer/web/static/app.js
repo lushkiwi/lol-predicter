@@ -94,6 +94,7 @@ let S = null;               // persistent state
 let R = null;               // last accepted prediction response
 let reqSeq = 0;             // id of the latest request sent
 let predictTimer = 0;
+let busyRetries = 0;        // consecutive "busy, try again" answers for the current request
 let apiError = '';
 let tiles = new Map();      // name -> tile element
 let booted = false;         // false during the first render: nothing animates in on page load
@@ -305,6 +306,7 @@ async function predict() {
   document.body.classList.add('loading');
   let data = null;
   let err = '';
+  let retryIn = 0;
   try {
     const resp = await fetch('/api/predict', {
       method: 'POST',
@@ -315,10 +317,21 @@ async function predict() {
     try { body = await resp.json(); } catch (e) { body = null; }
     if (!resp.ok) err = (body && body.detail) ? String(body.detail) : `HTTP ${resp.status}`;
     else data = body;
+    // the server is busy or this address has used its minute: wait as long as it asks, then ask again
+    if (resp.status === 503 || resp.status === 429) retryIn = Math.min(60, Math.max(1, parseInt(resp.headers.get('Retry-After') || '3', 10) || 3));
   } catch (e) {
     err = 'Cannot reach the server (' + e.message + ')';
   }
   if (seq !== reqSeq) return; // a newer request is in flight: drop this one
+  if (retryIn && busyRetries < 8) {
+    busyRetries++;
+    apiError = err;
+    renderNotices();
+    clearTimeout(predictTimer);
+    predictTimer = setTimeout(predict, retryIn * 1000);
+    return; // still "loading": the last good numbers stay on screen until the retry answers
+  }
+  busyRetries = 0;
   document.body.classList.remove('loading');
   if (err) {
     if (err !== apiError) toast('Prediction failed: ' + err, { kind: 'error' });
@@ -1418,14 +1431,21 @@ function bindEvents() {
     if (e.target.closest('.caveat')) { e.stopPropagation(); togglePop(); }
   });
   $('setupBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleSetup(); });
+  const aboutPop = $('aboutPop');
+  const toggleAbout = (show) => {
+    aboutPop.hidden = show === undefined ? !aboutPop.hidden : !show;
+    $('aboutBtn').setAttribute('aria-expanded', String(!aboutPop.hidden));
+  };
+  $('aboutBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleAbout(); });
   document.addEventListener('click', (e) => {
     if (!pop.hidden && !pop.contains(e.target)) togglePop(false);
     if (!setupPop.hidden && !setupPop.contains(e.target)) toggleSetup(false);
+    if (!aboutPop.hidden && !aboutPop.contains(e.target)) toggleAbout(false);
     const wl = document.querySelector('.warn-list');
     if (wl && !wl.hidden && !wl.contains(e.target)) wl.hidden = true;
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { togglePop(false); toggleSetup(false); }
+    if (e.key === 'Escape') { togglePop(false); toggleSetup(false); toggleAbout(false); }
   });
 
   document.addEventListener('keydown', (e) => {
@@ -1471,7 +1491,10 @@ async function boot() {
   META.champions.sort((a, b) => a.name.localeCompare(b.name));
   META.champions.forEach((c) => CHAMP.set(c.name, c));
   META.teams.forEach((t) => TEAM.set(t.name.toLowerCase(), t));
-  $('brand').title = `Model data through ${META.data_through}`;
+  const through = new Date(META.data_through + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  $('brand').title = `Model data through ${through}`;
+  $('aboutData').textContent = `It knows ${META.n_games.toLocaleString()} games played up to ${through}; nothing after that date.`;
+  $('dataThrough').textContent = `Data to ${through}`;
 
   S = sanitize(loadStored());
   save();

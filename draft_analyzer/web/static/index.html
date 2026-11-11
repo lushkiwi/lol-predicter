@@ -34,6 +34,8 @@
     </div>
   </div>
 
+  <span class="data-through muted small" id="dataThrough" title="The model knows nothing after this date"></span>
+
   <div class="field">First pick
     <div class="seg fp" id="firstPick" role="radiogroup" aria-label="First pick team">
       <button type="button" data-v="blue" class="fp-blue"></button>
@@ -45,6 +47,15 @@
   <div class="spacer"></div>
   <div class="series" id="series" aria-label="Series"></div>
   <div class="notices" id="notices"></div>
+  <div class="about-wrap">
+    <button type="button" class="btn quiet" id="aboutBtn" aria-expanded="false" aria-controls="aboutPop">About</button>
+    <div class="about-pop" id="aboutPop" hidden>
+      <p><b>Draft Predictor</b> estimates the next pick or ban in a professional League of Legends draft, and each side's chance of winning, from past pro games. <span id="aboutData"></span></p>
+      <p>The pick and ban probabilities are tested on held-out games: the actual choice is the model's first guess about 28% of the time and in its top five about 67%. The draft's effect on win probability is not validated and is shown as the model's opinion only.</p>
+      <p class="muted">Match data from Oracle's Elixir (non-commercial use). Champion data and images from Riot's Data Dragon. Typefaces: Sofia Sans, SIL Open Font License.</p>
+      <p class="muted">Draft Predictor isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.</p>
+    </div>
+  </div>
 </header>
 
 <main class="main">

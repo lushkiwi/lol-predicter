@@ -52,7 +52,7 @@ Every network response is cached on disk and never re-downloaded.
 .venv/bin/python -m draft_analyzer.experiments player report
 .venv/bin/python -m draft_analyzer.experiments tune         # hyperparameter search on the tune period
 
-.venv/bin/python -m pytest                                  # 114 tests
+.venv/bin/python -m pytest                                  # 117 tests
 ```
 
 Leagues and seasons are set in `draft_analyzer/config.py`, or with `DRAFT_LEAGUES="LCK,LPL"` and
@@ -78,6 +78,27 @@ becomes one scrolling column with the two teams side by side. The server runs on
 Champion icons and splash art are fetched from Data Dragon once and cached in `data/raw/ddragon/img/`. The page
 itself loads nothing from other hosts: its typefaces, Sofia Sans and Sofia Sans Condensed (SIL Open Font License,
 `draft_analyzer/web/static/fonts/OFL.txt`), are served from `static/fonts/`.
+
+### Hosting it
+
+The repository has no models or match data, so a host cannot build the site from GitHub alone.
+`draft_analyzer.deploy` assembles a directory with the code, the `Dockerfile` and exactly the files the server
+reads (about 50 MB), and checks that the server starts from it:
+
+```bash
+.venv/bin/python -m draft_analyzer.deploy          # writes ./deploy (gitignored); rerun after retraining
+railway up deploy --path-as-root                   # Railway builds the Dockerfile; any container host works
+```
+
+The container listens on `PORT`, answers `/health` once the models are loaded, runs unprivileged and needs
+about 560 MB of memory. Set `TRUST_PROXY=1` on the host so the per-visitor limit sees the visitor's address
+(Railway sends it as `X-Real-IP`); never set it where visitors reach the server directly.
+
+One prediction costs about 1.8 CPU-seconds, almost all of it the exact explanations, and the server computes one
+at a time: 1.1 s on 2 cores, 0.6 s on 4 (measured in the container). To keep that from becoming a queue the
+server remembers every answer it has given (everyone's first view is instant), gives each address 40 new
+predictions a minute, and tells the page to retry when more than 8 requests are already waiting. In a test of 40
+different drafts arriving in the same second on 2 cores, all were answered, the median after 23 s.
 
 ## Predicting from the command line
 
@@ -134,7 +155,7 @@ names in draft order, `null` for a missed ban). Earlier games of the series come
 
 ```
 draft_analyzer/
-  config.py  draft.py  evaluate.py  explain.py  predict.py  experiments.py  report.py
+  config.py  draft.py  evaluate.py  explain.py  predict.py  experiments.py  report.py  deploy.py
   web/       server.py  static/
   ingest/    oracles_elixir.py  leaguepedia.py  ddragon.py  join.py
   features/  asof.py  dataset.py  champion.py  team.py  player.py  pairwise.py  roles.py  context.py  elo.py
@@ -147,3 +168,13 @@ data/raw/    data/processed/            # gitignored
 
 Oracle's Elixir match data is for non-commercial use. Champion metadata is from Riot's Data Dragon. Leaguepedia
 is used only to cross-check draft order on a sample.
+
+## Licence
+
+The code is under the MIT licence (`LICENSE`). That does not cover the match data (Oracle's Elixir, non-commercial
+use), Riot's champion data and images, or the bundled typefaces (SIL Open Font License,
+`draft_analyzer/web/static/fonts/OFL.txt`).
+
+This project isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone
+officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are
+trademarks or registered trademarks of Riot Games, Inc.

@@ -150,6 +150,16 @@ input:focus, select:focus { outline: none; border-color: var(--muted); }
 }
 .setup-pop .field { justify-content: space-between; gap: 16px; }
 
+.data-through { white-space: nowrap; }
+.about-wrap { position: relative; }
+.about-pop {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 400px; max-width: calc(100vw - 24px);
+  padding: 14px 16px; background: var(--raise); border: 1px solid var(--line-2); border-radius: 4px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6); font-size: 13px; line-height: 1.45;
+}
+.about-pop p { margin: 0 0 9px; }
+.about-pop p:last-child { margin-bottom: 0; }
+.about-pop p.muted { font-size: 12px; }
 .series { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .series-game { font: 600 17px/1 var(--display); font-stretch: condensed; text-transform: uppercase; letter-spacing: 0.06em; }
 .series-score { font-weight: 600; }
@@ -406,7 +416,7 @@ body.loading .status-main::after { content: " ·"; color: var(--muted); animatio
 .tile:active:not(.off) .tile-icon { transform: scale(0.94); }
 .pred:active { transform: scale(0.99); }
 /* things that open: a short fade from where they hang */
-.setup-pop:not([hidden]), .combo-list:not([hidden]), .warn-list:not([hidden]), .caveat-pop:not([hidden]) { animation: popIn 0.14s var(--ease) both; }
+.setup-pop:not([hidden]), .combo-list:not([hidden]), .warn-list:not([hidden]), .caveat-pop:not([hidden]), .about-pop:not([hidden]) { animation: popIn 0.14s var(--ease) both; }
 @keyframes popIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 .winner-ask:not([hidden]) { animation: textIn 0.35s var(--ease) both; }
 .tile-name { margin-top: 6px; font-size: 12px; line-height: 1.15; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -602,6 +612,7 @@ b.against { color: var(--muted); }
 }
 @media (max-width: 1180px) {
   :root { --team-w: 180px; --side-w: 272px; }
+  .data-through { display: none; }
   .main { gap: 14px; padding: 12px; grid-template-columns: 40px var(--team-w) minmax(0, 1fr) var(--team-w) var(--side-w); }
   .side { padding-left: 14px; }
   .rail-end, .rail-name { width: 40px; max-width: 40px; }

@@ -10,3 +10,4 @@ data/cache/
 .DS_Store
 reports/results/
 reports/logs/
+deploy/
