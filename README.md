@@ -1,6 +1,6 @@
 # LoL Pro Draft Analyzer
 
-**Live: https://web-production-4e4960db.up.railway.app** (data through 9 November 2026)
+**Live: https://lolpredictor.up.railway.app** (data through 9 November 2026)
 
 Given a professional League of Legends draft in progress, this predicts:
 
@@ -76,7 +76,8 @@ are behind the summary at the top left. Picks fill the team columns as splash ar
 reasons are given in words that name the team and the fact behind them ("T1 picked it lately", "pairs with
 Gen.G's picks"), with the numbers in the hover card. When a draft is complete the grid is replaced by a recap of how the model rated each action; record the
 winner and the next game of the series starts with the Fearless burns applied. Below 860 px wide the page
-becomes one scrolling column with the two teams side by side. By default the server runs on localhost only; it keeps the models in memory (about 0.03 s per prediction on a
+becomes one scrolling column: the win bar, the two teams side by side, whose turn it is, the likely choices, the
+win details, then search and every champion. By default the server runs on localhost only; it keeps the models in memory (about 0.03 s per prediction on a
 15-core laptop, 0.2 s on the public host; see Hosting it).
 Champion icons and splash art are fetched from Data Dragon once and cached in `data/raw/ddragon/img/`. The page
 itself loads nothing from other hosts: its typefaces, Sofia Sans and Sofia Sans Condensed (SIL Open Font License,

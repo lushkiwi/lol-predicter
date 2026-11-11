@@ -24,7 +24,7 @@ Phases 4 (solo queue data) and 5 (LLM explanation layer) were not started.
 - **The win model does not beat the baseline.** With the full draft known, logistic regression scores log loss
   0.6369 against 0.6415 for Elo + side + first pick: a tie (difference -0.0046, CI -0.0133 to +0.0043). On the
   test split it is slightly worse than the baseline, also a tie. The draft effect is not detectable in this data.
-- **The web UI is public** at https://web-production-4e4960db.up.railway.app (since 2026-11-11, data through
+- **The web UI is public** at https://lolpredictor.up.railway.app (since 2026-11-11, data through
   2026-11-09). A prediction takes about 0.2 s on the host.
 - **Oracle's Elixir alone is enough for draft order.** Leaguepedia was only needed as a cross-check, and it
   agrees on first pick and side in every game compared.
@@ -58,12 +58,15 @@ Made after the first version of this report, at the user's request. All numbers 
 - **Web UI** added (`python -m draft_analyzer.web`), see the end of the M3 section.
 - **Web UI redesigned (2026-11-11).** Picks fill the team columns as splash art; regions sit on the background
   instead of in cards; colour has three roles (blue and red for the teams, gold for likelihood); the page serves
-  its own typefaces (Sofia Sans, Sofia Sans Condensed); each candidate's reasons are given in words that state a
-  fact and name the team, with the numbers in a hover card; a phone layout below 860 px.
+  its own typefaces (Sofia Sans, Sofia Sans Condensed, chosen from the six pairings in `docs/font-options.html`,
+  a standalone page that loads the candidates from Google Fonts); each candidate's reasons are given in words
+  that state a fact and name the team, with the numbers in a hover card; a phone layout below 860 px, which puts
+  the likely choices straight after whose turn it is and the full champion grid last.
 - **Explanations now compare a candidate with the 12 likeliest champions**, not with every available one, which
   made a prediction about five times faster on the host. Probabilities are unchanged; factor values are not
   comparable with earlier ones. See "Explanations and CLI".
-- **Made public (2026-11-11).** The site runs as one container on Railway; the repository is public under the
+- **Made public (2026-11-11).** The site runs as one container on Railway (the address was renamed once, on the first day; the first
+  generated address no longer works); the repository is public under the
   MIT licence. The server gained a per-address budget, remembered answers, a queue limit, a size limit on the
   draft state, a health check and an About panel with the data date, credits and Riot's notice. How to deploy,
   and what was measured, is under "Hosting it" in `README.md`.

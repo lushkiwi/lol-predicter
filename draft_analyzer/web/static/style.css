@@ -630,23 +630,40 @@ b.against { color: var(--muted); }
   .player input { padding-top: 0; padding-bottom: 0; }
 }
 
-/* ---------- phones: one scrolling column, the two teams side by side ---------- */
+/* ---------- phones: one scrolling column ----------
+ * Order: win bar, the two teams side by side, whose turn it is, the likely choices (tap one to
+ * enter it), the win details, then search and every champion. The grid comes last and is not a
+ * scroll box of its own: a box that scrolls inside a page that scrolls traps the finger. */
 @media (max-width: 860px) {
   html, body { height: auto; }
   body { display: block; min-height: 100vh; overflow: auto; }
-  .topbar { position: relative; gap: 6px 12px; padding: 9px 12px; }
+  .topbar { position: relative; gap: 4px 12px; padding: 9px 12px; }
   .spacer { display: none; }
-  .about-wrap { position: static; }
+  .brand { order: 0; }
+  .about-wrap { order: 1; margin-left: auto; position: static; }
+  .setup-wrap { order: 2; flex-basis: 100%; }
+  .topbar > .field, #swapSides, .series, .notices { order: 3; }
   .about-pop { left: 12px; right: 12px; width: auto; max-width: none; top: calc(100% + 4px); }
-  .main {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 10px; padding: 12px;
-    grid-template-areas: "rail rail" "blue red" "center center" "side side";
-  }
-  .rail { grid-area: rail; }
-  .team-blue { grid-area: blue; }
-  .team-red { grid-area: red; }
-  .center { grid-area: center; }
-  .side { grid-area: side; }
+  /* fingers need more room than a pointer */
+  .btn, .setup-btn { min-height: 40px; }
+  .seg button { min-height: 40px; padding: 8px 10px 7px; }
+  .setup-btn { padding-left: 0; }
+
+  .main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 10px; padding: 12px; }
+  .center, .side { display: contents; }
+  .rail, .statusbar, .winner-ask, .recap, .preds, .wincard, .toolbar, .grid { grid-column: 1 / -1; }
+  .rail { order: 0; }
+  .team-blue { order: 1; }
+  .team-red { order: 2; }
+  .statusbar { order: 3; }
+  .winner-ask { order: 4; }
+  .recap { order: 5; }
+  .preds { order: 6; }
+  .wincard { order: 7; margin-top: 0; }
+  .toolbar { order: 8; padding-top: 14px; border-top: 1px solid var(--line); }
+  .grid { order: 9; }
+  body[data-acting=""] .preds { display: none; }  /* draft complete: the recap says it all */
+
   .rail { flex-direction: row-reverse; gap: 10px; }
   .rail-end, .rail-name { width: auto; max-width: 34vw; }
   .rail-end { flex-direction: row; align-items: baseline; gap: 6px; }
@@ -667,12 +684,13 @@ b.against { color: var(--muted); }
   .slot-text { padding: 5px 9px 6px; }
   .status-main { font-size: 24px; }
   .toolbar { flex-wrap: wrap; }
-  .toolbar input[type=search] { flex: 1 1 100%; font-size: 16px; }
-  .grid, .recap { max-height: 64vh; }
-  .side { padding-left: 0; border-left: 0; }
+  .toolbar input[type=search] { flex: 1 1 100%; font-size: 16px; min-height: 40px; }
+  .grid, .recap { flex: none; max-height: none; overflow: visible; padding: 0 2px; }
+  .sec-head:first-child { margin-top: 0; }
   .preds { flex: none; }
   .pred-list { overflow: visible; }
   .pred { padding: 7px 8px; }
+  .recap-cols { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

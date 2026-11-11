@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Draft Predictor: font options</title>
+<!-- One request per pairing, so a family that fails to load cannot take the others with it. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Barlow:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600&family=Saira:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sofia+Sans+Condensed:wght@500;600&family=Sofia+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Source+Sans+3:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap">
+<style>
+:root {
+  --bg: #0c0d0f; --raise: #16181b; --raise-2: #202327;
+  --line: rgba(255, 255, 255, 0.08); --line-2: rgba(255, 255, 255, 0.18);
+  --text: #edebe6; --soft: #c6c4bd; --muted: #9a9891; --faint: #7a7872;
+  --blue: #5a96ff; --red: #f25a5f; --gold: 200, 170, 110;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+.page { max-width: 1180px; margin: 0 auto; padding: 36px 20px 64px; }
+h1 { margin: 0 0 8px; font-size: 26px; font-weight: 650; letter-spacing: -0.01em; }
+.lede { margin: 0 0 6px; max-width: 70ch; color: var(--soft); }
+.note { margin: 0 0 28px; max-width: 70ch; color: var(--muted); font-size: 13.5px; }
+.options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr)); gap: 22px; }
+
+.option { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.option.pick { border-color: rgba(var(--gold), 0.55); }
+.opt-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--raise); }
+.opt-name { font-weight: 650; font-size: 15px; }
+.opt-tag { font-size: 12.5px; color: var(--muted); }
+.opt-tag.rec { color: rgb(var(--gold)); }
+.opt-status { margin-left: auto; font-size: 12px; color: var(--faint); white-space: nowrap; }
+.opt-status.bad { color: var(--red); }
+
+/* the specimen: pieces of the real page, set in the option's two typefaces */
+.spec { padding: 18px 16px 16px; font-family: var(--body); font-size: 14px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.d { font-family: var(--display); font-stretch: condensed; text-transform: uppercase; }
+.row1 { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.brand { font-size: 19px; font-weight: 600; letter-spacing: 0.09em; }
+.game { font-size: 17px; font-weight: 600; letter-spacing: 0.06em; }
+.status { margin-top: 14px; font-size: 30px; line-height: 1.05; font-weight: 600; letter-spacing: 0.02em; }
+.status b { font-weight: 600; color: var(--blue); }
+.sub { color: var(--muted); font-size: 13px; }
+
+.slots { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.slot { position: relative; height: 64px; border-radius: 2px; display: flex; align-items: flex-end; overflow: hidden; }
+.slot.b { background: linear-gradient(100deg, #10131b 0%, #1b2a4a 55%, #5b6f9c 100%); box-shadow: inset 3px 0 0 var(--blue); }
+.slot.r { background: linear-gradient(260deg, #1b1012 0%, #4a1f25 55%, #a2646a 100%); box-shadow: inset -3px 0 0 var(--red); justify-content: flex-end; text-align: right; }
+.slot-text { padding: 7px 12px 8px; }
+.slot-name { font-size: 21px; line-height: 1.05; font-weight: 600; letter-spacing: 0.03em; }
+.slot-meta { font-size: 12px; color: var(--soft); }
+
+.head { margin-top: 18px; display: flex; align-items: baseline; justify-content: space-between; font-size: 19px; font-weight: 600; letter-spacing: 0.04em; }
+.head b { font-weight: 600; color: var(--red); }
+.head span { font-family: var(--body); text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 400; color: var(--muted); }
+.pred { display: grid; grid-template-columns: 14px 32px 1fr; gap: 9px; align-items: center; margin-top: 8px; }
+.rank { font-size: 12px; color: var(--faint); text-align: right; }
+.ico { width: 32px; height: 32px; border-radius: 2px; background: linear-gradient(135deg, #3a3550, #7c5d86); }
+.pred:nth-of-type(odd) .ico { background: linear-gradient(135deg, #2f4a3d, #7c9a6a); }
+.top { display: flex; align-items: center; gap: 9px; line-height: 17px; }
+.name { width: 104px; font-weight: 600; white-space: nowrap; }
+.bar { flex: 1; height: 3px; background: var(--raise-2); }
+.bar i { display: block; height: 100%; background: rgb(var(--gold)); }
+.pct { min-width: 52px; text-align: right; font-family: var(--display); font-stretch: condensed; font-size: 18px; line-height: 1; font-weight: 600; color: rgb(var(--gold)); }
+.why { font-size: 12px; line-height: 16px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.why i { font-style: normal; color: var(--faint); }
+
+.win { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: baseline; }
+.win span { font-size: 13px; font-weight: 600; }
+.win .n { font-family: var(--display); font-stretch: condensed; font-size: 32px; line-height: 1; font-weight: 600; color: var(--text); margin: 0 7px; }
+.roster { margin-top: 10px; color: var(--muted); font-size: 13px; }
+.roster b { color: var(--soft); font-weight: 400; }
+
+/* the options */
+.o-system { --display: "Avenir Next Condensed", "DIN Condensed", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif; --body: "Avenir Next", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+.o-barlow { --display: "Barlow Condensed", sans-serif; --body: "Barlow", sans-serif; }
+.o-saira { --display: "Saira Condensed", sans-serif; --body: "Saira", sans-serif; }
+.o-sofia { --display: "Sofia Sans Condensed", sans-serif; --body: "Sofia Sans", sans-serif; }
+.o-oswald { --display: "Oswald", sans-serif; --body: "Source Sans 3", sans-serif; }
+.o-rajdhani { --display: "Rajdhani", sans-serif; --body: "Rajdhani", sans-serif; }
+.o-rajdhani .spec { font-size: 15px; font-weight: 500; }
+.o-rajdhani .d { font-stretch: normal; font-weight: 700; }
+.o-oswald .d { font-stretch: normal; }
+.o-oswald .status { font-size: 27px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Font options for Draft Predictor</h1>
+  <p class="lede">Each card sets the same pieces of the page in a different pair of typefaces: a condensed one for names, headings and big numbers, and a plain one for everything else.</p>
+  <p class="note">The first card is what the site uses today: fonts already on the computer, so it looks like this on a Mac and plainer on Windows and Android. The others are free web fonts that would look the same everywhere. This preview loads them from Google Fonts; the site itself would carry its own copies. A card whose font did not load says so in its top right corner.</p>
+
+  <div class="options" id="options"></div>
+</div>
+
+<template id="specimen">
+  <div class="spec">
+    <div class="row1"><span class="d brand">Draft Predictor</span><span class="d game">Game 3</span></div>
+    <div class="d status"><b>Gen.G</b> to pick</div>
+    <div class="sub">Pick phase 2 · 17 of 20</div>
+    <div class="slots">
+      <div class="slot b"><div class="slot-text"><div class="d slot-name">Miss Fortune</div><div class="slot-meta">28% · rank 1</div></div></div>
+      <div class="slot r"><div class="slot-text"><div class="d slot-name">Jarvan IV</div><div class="slot-meta">9.1% · rank 4</div></div></div>
+    </div>
+    <div class="d head"><div>Likely bans for <b>Bilibili Gaming</b></div><span>of 157 available</span></div>
+    <div class="pred"><span class="rank">1</span><span class="ico"></span><div><div class="top"><span class="name">Renata Glasc</span><span class="bar"><i style="width: 100%"></i></span><span class="pct">43.9%</span></div><div class="why">Popular this patch · Gen.G players win on it</div></div></div>
+    <div class="pred"><span class="rank">2</span><span class="ico"></span><div><div class="top"><span class="name">Twisted Fate</span><span class="bar"><i style="width: 41%"></i></span><span class="pct">18.0%</span></div><div class="why">Gen.G picked it lately · <i>rarely taken at this turn</i></div></div></div>
+    <div class="pred"><span class="rank">3</span><span class="ico"></span><div><div class="top"><span class="name">K'Sante</span><span class="bar"><i style="width: 16%"></i></span><span class="pct">7.1%</span></div><div class="why">Fills a role Gen.G need · <i>out of favour lately</i></div></div></div>
+    <div class="win"><span style="color: var(--blue)">Gen.G<span class="n">81.4%</span></span><span style="color: var(--red)"><span class="n">18.6%</span>Bilibili Gaming</span></div>
+    <div class="roster">Top <b>Kiin</b> · Jgl <b>Canyon</b> · Mid <b>Chovy</b> · Bot <b>Ruler</b> · Sup <b>Duro</b> · 0123456789</div>
+  </div>
+</template>
+
+<script>
+const OPTIONS = [
+  { cls: 'o-system', name: 'Current: fonts on the computer', tag: 'Avenir Next Condensed + Avenir Next on a Mac', check: null },
+  { cls: 'o-barlow', name: 'Barlow Condensed + Barlow', tag: 'My pick: close to the current look, clear at small sizes', rec: true, check: ['Barlow Condensed', 'Barlow'] },
+  { cls: 'o-sofia', name: 'Sofia Sans Condensed + Sofia Sans', tag: 'Softer and rounder, friendlier', check: ['Sofia Sans Condensed', 'Sofia Sans'] },
+  { cls: 'o-saira', name: 'Saira Condensed + Saira', tag: 'Squarer and more technical, a little sci-fi', check: ['Saira Condensed', 'Saira'] },
+  { cls: 'o-oswald', name: 'Oswald + Source Sans 3', tag: 'Heavier, newspaper-headline feel', check: ['Oswald', 'Source Sans 3'] },
+  { cls: 'o-rajdhani', name: 'Rajdhani', tag: 'Angular and the most “gaming”; one family for everything', check: ['Rajdhani'] },
+];
+const box = document.getElementById('options');
+const tpl = document.getElementById('specimen');
+for (const o of OPTIONS) {
+  const card = document.createElement('section');
+  card.className = 'option ' + o.cls + (o.rec ? ' pick' : '');
+  const head = document.createElement('div');
+  head.className = 'opt-head';
+  const name = document.createElement('span'); name.className = 'opt-name'; name.textContent = o.name;
+  const tag = document.createElement('span'); tag.className = 'opt-tag' + (o.rec ? ' rec' : ''); tag.textContent = o.tag;
+  const status = document.createElement('span'); status.className = 'opt-status'; status.dataset.cls = o.cls;
+  head.append(name, tag, status);
+  card.append(head, tpl.content.cloneNode(true));
+  box.appendChild(card);
+}
+// say plainly when a web font did not arrive, so a fallback is never mistaken for the real thing
+async function report() {
+  for (const o of OPTIONS) {
+    const el = document.querySelector(`.opt-status[data-cls="${o.cls}"]`);
+    if (!o.check) { el.textContent = 'no download needed'; continue; }
+    try { await Promise.all(o.check.map((f) => document.fonts.load(`600 20px "${f}"`))); } catch (e) { /* reported below */ }
+    const ok = o.check.every((f) => document.fonts.check(`600 20px "${f}"`));
+    el.textContent = ok ? 'web font loaded' : 'font did not load: showing a fallback';
+    el.classList.toggle('bad', !ok);
+  }
+  document.documentElement.dataset.fontsChecked = '1';
+}
+report();
+</script>
+</body>
+</html>
