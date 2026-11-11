@@ -37,7 +37,7 @@ def explain_next_action(model, X: np.ndarray, cand_ids: np.ndarray, champion_nam
     the champion ids of its rows.
     """
     temp = model.temperature.get(action_type, 1.0)
-    contrib = model.booster.predict(X, num_iteration=model.best_iteration, pred_contrib=True) * temp
+    contrib = model.contributions(X) * temp
     phi, base = contrib[:, :-1], contrib[:, -1]
     scores = phi.sum(axis=1) + base
     p = np.exp(scores - scores.max())

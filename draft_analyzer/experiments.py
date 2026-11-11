@@ -2,17 +2,18 @@
 
     python -m draft_analyzer.experiments build   # features (one chronological pass)
     python -m draft_analyzer.experiments m2      # baselines  -> reports/M2_baselines.md
-    python -m draft_analyzer.experiments m3      # models (about 25 min), then `python -m draft_analyzer.report m3`
+    python -m draft_analyzer.experiments m3      # models (about 1.5 h), then `python -m draft_analyzer.report m3`
     python -m draft_analyzer.experiments history # which history-only leagues to use -> reports/history_leagues.md
 
 Splits are by series start time (see features/dataset.py): train < 2026-07-20 <= val <
 2026-09-17 <= test. Model selection uses only the training period (its tail from 2026-04-01
 is the "tune" period for early stopping); the validation split is used for every reported
-comparison; the test split is scored once, at the end of M3.
+comparison; the test split is scored at the end of M3 and never used for a choice.
 """
 from __future__ import annotations
 
 import json
+import os
 import pickle
 import sys
 import time
@@ -181,8 +182,9 @@ def _log(msg: str) -> None:
 
 
 def m3_next_action() -> None:
-    """Regime comparison, joint vs separate, ablations. Saves per-action results and models."""
-    from .features import group_of
+    """Regime comparison, joint vs separate, ablations, each with one seed and 60 sampled negatives
+    per action (many fits, so the cheap setting). Saves per-action validation results and the
+    choices in na_summary.json; the model that is served is trained by m3_served."""
     from .models.next_action import NextActionModel, exclude_baseline, fit_with_refit
 
     data = ds.load()
@@ -253,62 +255,109 @@ def m3_next_action() -> None:
         m.temperature = dict(joint.temperature)
         save_result(f"na_only_{prefix.rstrip('_')}_val", m.evaluate(data, idx["val"]))
 
-    # importance: gain and mean |SHAP| by group on a validation sample
-    imp = joint.importance()
+    (RESULTS / "na_summary.json").write_text(json.dumps(summary, indent=2, default=float))
+    _log("next-action experiments done")
+
+
+# --------------------------------------------------------------------------------------
+# M3: the served next-action model
+# --------------------------------------------------------------------------------------
+SERVED = {"neg_per_action": None}  # train on every candidate, no negative sampling (reports/tuning.md)
+SERVED_SEEDS = (0, 1, 2)  # the served model is the mean logit of these fits (reports/tuning.md)
+
+
+def _regime(data: ds.NextActionData, idx: dict) -> tuple[np.ndarray, np.ndarray, dict, dict]:
+    """(fit actions, live actions, model settings, na_summary) for the regime chosen in m3_next_action."""
+    summ = json.loads((RESULTS / "na_summary.json").read_text())
+    if summ["regime_choice"] == "all_decay365":
+        return idx["fit"], np.arange(len(data.actions)), {"half_life_days": 365.0}, summ
+    era = data.actions["datetime"].to_numpy() >= np.datetime64(FEARLESS_ERA_START)
+    return idx["fit"][era[idx["fit"]]], np.flatnonzero(era), {"half_life_days": None}, summ
+
+
+def _served_seed(seed: int, threads: int) -> tuple:
+    """One seed of the served recipe: the model that is evaluated (fit + tune periods) and the live
+    one (same settings and 1.05x the rounds on all data, for following new drafts)."""
+    from .models.next_action import NextActionModel
+
+    t = time.time()
+    data = ds.load()
+    idx = split_indices(data)
+    fit_idx, live_idx, regime_kw, _ = _regime(data, idx)
+    config_ = {**SERVED, **regime_kw}
+    m = fit_recipe(data, {"fit": fit_idx, "tune": idx["tune"]}, seed, config_=config_, threads=threads)
+    live = NextActionModel(**_model_kwargs(config_, seed, threads)).fit(
+        data, live_idx, None, num_rounds=int(m.best_iteration * 1.05), seed=seed)
+    live.temperature = dict(m.temperature)
+    _log(f"served seed {seed}: stage-1 rounds {m.stage1_best_iteration}, tune log loss {m.stage1_tune_logloss:.4f} "
+         f"({time.time() - t:.0f}s)")
+    return m, live
+
+
+def m3_served(seeds: tuple[int, ...] = SERVED_SEEDS, workers: int | None = None) -> None:
+    """The model the CLI and the web UI use: the chosen regime trained on every candidate, averaged
+    over seeds. The experiments in m3_next_action use 60 sampled negatives and one seed because
+    they need many fits; this is the one model that gets the expensive treatment. Scores the
+    validation and test splits and writes the importance table, the failure cases and the pickles.
+    One joint model is served; m3_next_action records whether separate pick/ban models tied."""
+    from concurrent.futures import ProcessPoolExecutor
+
+    from .features import group_of
+    from .models.next_action import average_models, group_softmax
+
+    t = time.time()
+    workers = workers or min(len(seeds), 3)
+    threads = max(1, (os.cpu_count() or 4) // workers)
+    with ProcessPoolExecutor(workers) as pool:
+        fitted = list(pool.map(_served_seed, seeds, [threads] * len(seeds)))
+    members = [m for m, _ in fitted]
+    model, live = average_models(members), average_models([m for _, m in fitted])
+
+    data = ds.load()
+    idx = split_indices(data)
+    _, _, regime_kw, summary = _regime(data, idx)
+    val, test = model.evaluate(data, idx["val"]), model.evaluate(data, idx["test"])
+    save_result("na_final_val", val)
+    save_result("na_final_test", test)
+    summary["served"] = {
+        "settings": {**SERVED, **regime_kw}, "seeds": list(seeds), "seconds": round(time.time() - t),
+        "stage1_best_iteration": [m.stage1_best_iteration for m in members],
+        "stage1_tune_logloss": [m.stage1_tune_logloss for m in members],
+        "temperature": model.temperature,
+        "val_single": [ev.next_action_metrics(m.evaluate(data, idx["val"])) for m in members],
+        "val": ev.next_action_metrics(val), "test": ev.next_action_metrics(test)}
+    _log(f"served model: val {summary['served']['val']}, test {summary['served']['test']}")
+
+    # importance: gain (first seed) and mean |SHAP| (the average) by feature on a validation sample
+    imp = model.importance()
     imp["group"] = imp["feature"].map(group_of)
     rng = np.random.default_rng(0)
     sample_actions = np.sort(rng.choice(idx["val"], size=min(1500, len(idx["val"])), replace=False))
-    Xs = data.matrix(ds.rows_of(data, sample_actions), joint.features)
-    shap_vals = np.abs(joint.booster.predict(Xs, num_iteration=joint.best_iteration, pred_contrib=True)[:, :-1]).mean(axis=0)
-    imp = imp.merge(pd.DataFrame({"feature": joint.features, "mean_abs_shap": shap_vals}), on="feature")
+    Xs = data.matrix(ds.rows_of(data, sample_actions), model.features)
+    shap_vals = np.abs(model.contributions(Xs)[:, :-1]).mean(axis=0)
+    imp = imp.merge(pd.DataFrame({"feature": model.features, "mean_abs_shap": shap_vals}), on="feature")
     imp.to_csv(RESULTS / "na_importance.csv", index=False)
 
-    # test split: scored once with the final choice
-    final = {"joint": joint, "by_type": sep_models if use_separate else None}
-    if use_separate:
-        parts = [sep_models[typ].evaluate(data, idx["test"][mask[idx["test"]]]) for typ, mask in (("pick", is_pick), ("ban", ~is_pick))]
-        test_res = pd.concat(parts).sort_values(["game_id", "action_index"]).reset_index(drop=True)
-        final_val = sep
-    else:
-        test_res = joint.evaluate(data, idx["test"])
-        final_val = res[regime]
-    save_result("na_final_test", test_res)
-    save_result("na_final_val", final_val)
-
     # failure cases on validation: per-action top prediction vs truth
-    scores = joint.predict_scores(data, idx["val"])
+    scores = model.predict_scores(data, idx["val"])
     acts = data.actions.iloc[idx["val"]].reset_index(drop=True)
     sizes_ = acts["n_cand"].to_numpy()
     starts = np.concatenate([[0], np.cumsum(sizes_)[:-1]])
     rows = ds.rows_of(data, idx["val"])
-    from .models.next_action import group_softmax
     p = group_softmax(scores, starts, sizes_)
     champ = data.row_champ[rows]
     top_pos = np.array([s + int(np.argmax(p[s:s + n])) for s, n in zip(starts, sizes_)])
     acts["pred_champ"], acts["pred_prob"] = champ[top_pos], p[top_pos]
     acts["true_prob"] = p[data.row_label[rows]]
-    acts["true_rank"] = res[regime]["true_rank"].to_numpy()
+    acts["true_rank"] = val["true_rank"].to_numpy()
     acts.to_parquet(RESULTS / "na_val_predictions.parquet", index=False)
 
     MODELS.mkdir(parents=True, exist_ok=True)
-    with open(MODELS / "next_action.pkl", "wb") as f:
-        pickle.dump(final, f)
-    # live models: same recipe refit on ALL data (train + val + test), for following new drafts
-    all_idx = np.arange(len(data.actions))
-    live_idx = all_idx if regime == "all_decay365" else all_idx[dt >= era]
-    live_joint = NextActionModel(**regime_kw).fit(data, live_idx, None, num_rounds=int(joint.best_iteration * 1.05))
-    live_joint.temperature = dict(joint.temperature)
-    live = {"joint": live_joint, "by_type": None}
-    if use_separate:
-        live["by_type"] = {}
-        for typ, mask in (("pick", is_pick), ("ban", ~is_pick)):
-            m = NextActionModel(**regime_kw).fit(data, live_idx[mask[live_idx]], None, num_rounds=int(sep_models[typ].best_iteration * 1.05))
-            m.temperature = dict(sep_models[typ].temperature)
-            live["by_type"][typ] = m
-    with open(MODELS / "next_action_live.pkl", "wb") as f:
-        pickle.dump(live, f)
+    for name, served in (("next_action.pkl", model), ("next_action_live.pkl", live)):
+        with open(MODELS / name, "wb") as f:
+            pickle.dump({"joint": served, "by_type": None}, f)
     (RESULTS / "na_summary.json").write_text(json.dumps(summary, indent=2, default=float))
-    _log("next-action experiments done")
+    _log("served next-action model done")
 
 
 # --------------------------------------------------------------------------------------
@@ -396,16 +445,19 @@ def m3_pair_split() -> None:
 
     data = ds.load()
     idx = split_indices(data)
-    with open(MODELS / "next_action.pkl", "rb") as f:
-        joint = pickle.load(f)["joint"]
     dt = data.actions["datetime"].to_numpy()
-    train_idx = idx["train"][dt[idx["train"]] >= np.datetime64(FEARLESS_ERA_START)]
+    # same training regime, rounds and temperatures as the joint model these ablations are compared with
+    summ = json.loads((RESULTS / "na_summary.json").read_text())
+    regime = summ["regime_choice"]
+    joint = summ["runs"][f"gbm_{regime}"]
+    train_idx = idx["train"] if regime == "all_decay365" else idx["train"][dt[idx["train"]] >= np.datetime64(FEARLESS_ERA_START)]
+    regime_kw = {"half_life_days": 365.0} if regime == "all_decay365" else {}
     all_feats = exclude_baseline(data.feature_names)
     win_based = [f for f in all_feats if f.startswith("pair_syn") or f.startswith("pair_ctr")]
     lift = [f for f in all_feats if f.startswith("pair_") and f not in win_based]
     for name, drop in (("pair_winbased", win_based), ("pair_lift", lift)):
-        m = NextActionModel(features=[f for f in all_feats if f not in drop]).fit(data, train_idx, None, num_rounds=joint.best_iteration)
-        m.temperature = dict(joint.temperature)
+        m = NextActionModel(features=[f for f in all_feats if f not in drop], **regime_kw).fit(data, train_idx, None, num_rounds=joint["refit_rounds"])
+        m.temperature = dict(joint["temperature"])
         r = m.evaluate(data, idx["val"])
         save_result(f"na_ablate_{name}_val", r)
         _log(f"ablation -{name} ({drop}): {ev.next_action_metrics(r)}")
@@ -509,15 +561,262 @@ def regime_seed_check(seeds: tuple[int, ...] = (1, 2)) -> None:
     print("\n".join(out))
 
 
+# --------------------------------------------------------------------------------------
+# Accuracy experiments: player-targeting features, hyperparameters, seed averaging
+# --------------------------------------------------------------------------------------
+EXP_FEATURES = config.DATA_PROCESSED / "features_exp"  # features built with the code under test
+EXP_SCORES = config.DATA_PROCESSED / "exp_scores"  # per-candidate validation logits, one file per fitted model
+TARGET_PREFIXES = ("player_banned_vs_", "player_ban_focus_")
+PINCH_PREFIXES = ("player_pool_share_left_", "player_pool_frac_left_", "player_pool_n_left_")
+RECIPE = {"half_life_days": 365.0}  # the regime chosen in M3: all games, 365-day decay
+TUNE_SPACE = {
+    "num_leaves": [15, 31, 47, 63, 127],
+    "min_data_in_leaf": [40, 80, 150, 300, 600],
+    "feature_fraction": [0.4, 0.55, 0.7, 0.85, 1.0],
+    "lambda_l2": [1.0, 5.0, 20.0, 80.0],
+    "max_bin": [63, 127, 255],
+    "neg_per_action": [30, 60, 120],
+    "half_life_days": [180.0, 365.0, 730.0],
+}
+MODEL_KEYS = ("neg_per_action", "half_life_days")  # TUNE_SPACE keys that are NextActionModel fields, not LightGBM's
+
+
+def _model_kwargs(config_: dict, seed: int, threads: int | None, features=None) -> dict:
+    kw = {**RECIPE, **{k: v for k, v in config_.items() if k in MODEL_KEYS}}
+    params = {k: v for k, v in config_.items() if k not in MODEL_KEYS}
+    params["seed"] = seed
+    if threads:
+        params["num_threads"] = threads
+    return {"features": features, "params": params, **kw}
+
+
+def fit_recipe(data, idx, seed: int = 0, features=None, config_: dict | None = None, threads: int | None = None,
+               refit: bool = True):
+    """The M3 recipe with an explicit seed (negative sampling and LightGBM): early-stop on the tune
+    period, then refit on fit + tune with 1.1x the rounds. ``refit=False`` returns the first stage."""
+    from .models.next_action import NextActionModel
+
+    kw = _model_kwargs(config_ or {}, seed, threads, features)
+    s1 = NextActionModel(**kw).fit(data, idx["fit"], idx["tune"], seed=seed)
+    s1.stage1_best_iteration, s1.stage1_tune_logloss = s1.best_iteration, min(s1.history)
+    if not refit:
+        return s1
+    m = NextActionModel(**kw).fit(data, np.sort(np.concatenate([idx["fit"], idx["tune"]])), None,
+                                  num_rounds=int(round(s1.best_iteration * 1.1)), seed=seed)
+    m.temperature = dict(s1.temperature)
+    m.stage1_best_iteration, m.stage1_tune_logloss = s1.best_iteration, s1.stage1_tune_logloss
+    return m
+
+
+def _val_scores(name: str, data=None, idx=None, fit=None) -> np.ndarray:
+    """Validation logits of a fitted model, cached on disk under ``name`` (fit() -> model on a miss)."""
+    path = EXP_SCORES / f"{name}.npy"
+    if path.exists():
+        return np.load(path)
+    t = time.time()
+    m = fit()
+    scores = m.predict_scores(data, idx["val"]).astype(np.float32)
+    EXP_SCORES.mkdir(parents=True, exist_ok=True)
+    np.save(path, scores)
+    (EXP_SCORES / f"{name}.json").write_text(json.dumps({
+        "stage1_rounds": m.stage1_best_iteration, "stage1_tune_logloss": m.stage1_tune_logloss,
+        "temperature": m.temperature, "seconds": round(time.time() - t)}))
+    _log(f"{name}: {ev.next_action_metrics(ds.results_frame(data, scores, idx['val']))} ({time.time() - t:.0f}s)")
+    return scores
+
+
+def _averaged(score_list: list[np.ndarray]) -> np.ndarray:
+    """Seed average: the mean of the models' logits (what an averaged model would serve)."""
+    return np.mean(np.stack(score_list), axis=0)
+
+
+def exp_build() -> None:
+    """Features with the current code into the experiment directory (the main features stay as they are)."""
+    t = time.time()
+    data, _, _ = ds.build(out_dir=EXP_FEATURES)
+    print(f"built in {time.time() - t:.0f}s: {len(data.cand_names)} candidate + {len(data.ctx_names)} context features")
+
+
+def player_variants(data) -> dict[str, list[str]]:
+    from .models.next_action import exclude_baseline
+
+    feats = exclude_baseline(data.feature_names)
+    target = [f for f in feats if f.startswith(TARGET_PREFIXES)]
+    pinch = [f for f in feats if f.startswith(PINCH_PREFIXES)]
+    assert target and pinch, "the experiment features are missing: run `experiments expbuild` first"
+    return {"base": [f for f in feats if f not in target + pinch], "target": [f for f in feats if f not in pinch],
+            "pinch": [f for f in feats if f not in target], "both": feats}
+
+
+def player_fit(variants: list[str], seeds=(0, 1, 2), threads: int | None = None, tag: str = "", config_: dict | None = None) -> None:
+    """Fit the named feature variants for every seed and cache their validation logits."""
+    data = ds.load(EXP_FEATURES)
+    idx = split_indices(data)
+    feats = player_variants(data)
+    for seed in seeds:
+        for v in variants:
+            _val_scores(f"player{tag}_{v}_s{seed}", data, idx,
+                        lambda: fit_recipe(data, idx, seed, feats[v], config_=config_, threads=threads))
+
+
+def _phase_table(frames: dict[str, pd.DataFrame], reference: str) -> pd.DataFrame:
+    rows = []
+    for ph in ("ban1", "pick1", "ban2", "pick2"):
+        sub_ = {k: r[r.phase == ph] for k, r in frames.items()}
+        t = ev.compare_table(sub_, reference, ["top1", "top5", "log_loss"], kind="next_action")
+        t.insert(0, "phase", ph)
+        rows.append(t[t.model != reference])
+    return pd.concat(rows, ignore_index=True)
+
+
+def player_report(seeds=(0, 1, 2)) -> None:
+    """reports/player_targeting.md from the cached logits (validation split only)."""
+    data = ds.load(EXP_FEATURES)
+    idx = split_indices(data)
+    names = ("base", "target", "pinch", "both")
+    frame = lambda s: ds.results_frame(data, s, idx["val"])
+    scores = {v: [_val_scores(f"player_{v}_s{seed}") for seed in seeds] for v in names}
+    v0 = frame(scores["base"][0])
+    feats = player_variants(data)
+    out = ["# Player-targeting features\n",
+           "Generated by `python -m draft_analyzer.experiments player report`. Validation split only "
+           f"({sizes(v0)}, {len(v0)} actions); the test split is not touched. Every model is the M3 recipe (all games, "
+           "365-day decay) fitted with the same seed for negative sampling and LightGBM; `diff` is model minus "
+           "`base`, paired bootstrap by series, 95% CI.\n",
+           "- **base**: the features of the M3 model.",
+           f"- **target**: base + bans aimed at a player ({', '.join(f for f in feats['both'] if f.startswith(TARGET_PREFIXES))}).",
+           f"- **pinch**: base + the player's remaining pool ({', '.join(f for f in feats['both'] if f.startswith(PINCH_PREFIXES))}).",
+           "- **both**: all of them.\n",
+           "## Single models, per seed\n"]
+    rows = []
+    for i, seed in enumerate(seeds):
+        res = {v: frame(scores[v][i]) for v in names}
+        t = ev.compare_table(res, "base", ["top1", "top5", "log_loss"], kind="next_action")
+        t.insert(0, "seed", seed)
+        rows.append(t)
+    per_seed = pd.concat(rows, ignore_index=True)
+    out += [md(per_seed), ""]
+    avg = {v: frame(_averaged(scores[v])) for v in names}
+    out += [f"## Average of {len(seeds)} seeds (mean logit)\n",
+            md(ev.compare_table(avg, "base", NA_METRICS, kind="next_action")), "",
+            "### By draft phase\n", md(_phase_table(avg, "base")), "",
+            "## What seed averaging itself is worth (base features)\n",
+            md(ev.compare_table({"single_seed0": frame(scores["base"][0]), f"average_of_{len(seeds)}": avg["base"]},
+                                "single_seed0", NA_METRICS, kind="next_action")), ""]
+    (config.REPORTS / "player_targeting.md").write_text("\n".join(out))
+    print("\n".join(out))
+
+
+# One factor at a time from the M3 defaults, after the random search pointed at the time decay and
+# the number of sampled negatives (None = no decay / every candidate).
+TUNE_TARGETED = [
+    {"half_life_days": 730.0}, {"neg_per_action": 120}, {"half_life_days": 730.0, "neg_per_action": 120},
+    {"half_life_days": None, "neg_per_action": 120}, {"half_life_days": 730.0, "neg_per_action": None},
+]
+
+
+def tune_search(n: int = 16, seed: int = 0, threads: int | None = None, targeted: bool = False) -> None:
+    """Random search over TUNE_SPACE (or, with ``targeted``, the TUNE_TARGETED list). Each
+    configuration is fitted on the fit period and scored by its early-stopped log loss on the
+    tune period, so the validation split plays no part in the choice. Results accumulate in
+    reports/results/tune_search.csv (tune_targeted.csv)."""
+    data = ds.load()
+    idx = split_indices(data)
+    rng = np.random.default_rng(seed)
+    configs = [{}] + [{k: v[int(rng.integers(len(v)))] for k, v in TUNE_SPACE.items()} for _ in range(n)]
+    path = RESULTS / "tune_search.csv"
+    if targeted:
+        configs, path = TUNE_TARGETED, RESULTS / "tune_targeted.csv"
+    done = pd.read_csv(path) if path.exists() else pd.DataFrame()
+    for c in configs:
+        key = json.dumps(c, sort_keys=True)
+        if len(done) and key in set(done["config"]):
+            continue
+        t = time.time()
+        m = fit_recipe(data, idx, 0, config_=c, threads=threads, refit=False)
+        row = {"config": key, "tune_logloss": m.stage1_tune_logloss, "rounds": m.stage1_best_iteration,
+               "seconds": round(time.time() - t), **c}
+        done = pd.concat([done, pd.DataFrame([row])], ignore_index=True)
+        done.to_csv(path, index=False)
+        _log(f"tune {key}: {row['tune_logloss']:.4f} at {row['rounds']} rounds ({row['seconds']}s)")
+    print(done.sort_values("tune_logloss").drop(columns="config").to_string())
+
+
+TUNED = {"neg_per_action": None}  # the one setting the search singled out: train on every candidate
+
+
+def tuning_report(seeds=(0, 1, 2)) -> None:
+    """reports/tuning.md: the search on the tune period, then one look at validation for the
+    chosen setting, with and without seed averaging and the pool-pinch features."""
+    data = ds.load(EXP_FEATURES)
+    idx = split_indices(data)
+    frame = lambda s: ds.results_frame(data, s, idx["val"])
+    load = lambda name: [_val_scores(f"{name}_s{seed}") for seed in seeds]
+    base, tuned, tuned_pinch = load("player_base"), load("player_tuned_base"), load("player_tuned_pinch")
+    search = pd.read_csv(RESULTS / "tune_search.csv").sort_values("tune_logloss")
+    targeted = pd.read_csv(RESULTS / "tune_targeted.csv")
+    targeted["config"] = targeted["config"].map(lambda c: ", ".join(f"{k}={v}" for k, v in json.loads(c).items()))
+    v0 = frame(base[0])
+    out = ["# Hyperparameters and seed averaging\n",
+           "Generated by `python -m draft_analyzer.experiments tune report`.\n",
+           "## Search (tune period only)\n",
+           "Each configuration is fitted on the fit period and scored by its early-stopped log loss on the tune period "
+           "(April to mid-July 2026, inside the training split), so validation plays no part in the choice. The first "
+           "row with empty settings is the M3 default (47 leaves, 150 per leaf, feature fraction 0.7, L2 20, 127 bins, "
+           "60 sampled negatives per action, 365-day decay).\n",
+           md(search.drop(columns="config")), "",
+           "One factor at a time from the default (`None` = no time decay / every candidate, no sampling):\n",
+           md(targeted[["config", "tune_logloss", "rounds", "seconds"]]), "",
+           "The number of sampled negatives is the factor that matters; the decay and the tree settings move the tune "
+           "loss by a few thousandths. Chosen: the M3 default with **every candidate** (no negative sampling).\n",
+           f"## Validation ({sizes(v0)}, {len(v0)} actions)\n",
+           "`diff` is model minus the single default model (seed 0), paired bootstrap by series, 95% CI. Averages are "
+           f"the mean logit of {len(seeds)} seeds.\n"]
+    res = {"default_single": frame(base[0]), "default_average": frame(_averaged(base)),
+           "all_candidates_single": frame(tuned[0]), "all_candidates_average": frame(_averaged(tuned)),
+           "all_candidates_pinch_average": frame(_averaged(tuned_pinch))}
+    out += [md(ev.compare_table(res, "default_single", NA_METRICS, kind="next_action")), "",
+            "Single models per seed (log loss): " + json.dumps({
+                "default": [round(ev.next_action_metrics(frame(s_))["log_loss"], 4) for s_ in base],
+                "all_candidates": [round(ev.next_action_metrics(frame(s_))["log_loss"], 4) for s_ in tuned],
+                "all_candidates_pinch": [round(ev.next_action_metrics(frame(s_))["log_loss"], 4) for s_ in tuned_pinch]}) + "\n",
+            "### Pool-pinch features under the chosen setting (average vs average)\n",
+            md(ev.compare_table({"all_candidates_average": res["all_candidates_average"],
+                                 "all_candidates_pinch_average": res["all_candidates_pinch_average"]},
+                                "all_candidates_average", NA_METRICS, kind="next_action")), "",
+            "The rule set before these fits (`reports/player_targeting.md`): the pool-pinch features go in only if "
+            "this log-loss interval excludes zero. With 60 sampled negatives the same comparison was a tie "
+            "(-0.0032, CI -0.0077 to +0.0013), so this is the second look at these features on the same validation "
+            "games, and the gain is small.\n",
+            "## Decision\n",
+            "Serve the M3 regime trained on every candidate, as the mean logit of 3 seeds, with the pool-pinch features "
+            "when the interval above excludes zero. The targeted-ban features stay out (worse on validation in "
+            "`reports/player_targeting.md`). `experiments m3served` trains that model; the regime comparison and "
+            "the ablations in `M3_models.md` keep the cheaper single-seed, sampled setting.\n",
+            "### Candidate final models against the first M3 model, by draft phase\n",
+            md(_phase_table({k: res[k] for k in ("default_single", "all_candidates_average", "all_candidates_pinch_average")},
+                            "default_single")), ""]
+    (config.REPORTS / "tuning.md").write_text("\n".join(out))
+    print("\n".join(out))
+
+
 def m3() -> None:
     m3_next_action()
     m3_pair_split()
+    m3_served()
     m3_win()
     pack_models()
 
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
-    {"build": build, "m2": m2, "m3": m3, "m3na": m3_next_action, "m3pair": m3_pair_split, "m3win": m3_win,
+    {"build": build, "m2": m2, "m3": m3, "m3na": m3_next_action, "m3pair": m3_pair_split, "m3served": m3_served, "m3win": m3_win,
      "pack": pack_models, "history": lambda: history_variants(sys.argv[2:] or None),
-     "seeds": regime_seed_check}.get(cmd, lambda: print(__doc__))()
+     "seeds": regime_seed_check, "expbuild": exp_build,
+     "player": lambda: (player_report() if sys.argv[2] == "report" else
+                        player_fit(sys.argv[3].split(","), threads=int(sys.argv[4]) if len(sys.argv) > 4 else None)),
+     "tune": lambda: tuning_report() if sys.argv[2:3] == ["report"] else
+     tune_search(int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] != "targeted" else 16,
+                                 threads=int(sys.argv[3]) if len(sys.argv) > 3 else None,
+                                 targeted=len(sys.argv) > 2 and sys.argv[2] == "targeted"),
+     }.get(cmd, lambda: print(__doc__))()

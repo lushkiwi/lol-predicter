@@ -154,4 +154,42 @@ def test_shapes_names_finite():
                 names, X = v
                 assert X.shape[0] == CH.C and np.all(np.isfinite(X))
     names = res["g3"][0][0]
-    assert sum(n.startswith("player_") for n in names) == 12
+    assert sum(n.startswith("player_") for n in names) == 22
+
+
+def test_bans_follow_the_player_to_a_new_team():
+    # g1: A (blue) bans 11..15 against B. In g2 B's top laner B0 plays for team X against A.
+    g1 = mk("g1", 100.0)
+    x_players = ("B0", "X1", "X2", "X3", "X4")
+    g2 = mk("g2", 101.0, blue_team="A", red_team="X", players=(tuple(f"A{i}" for i in range(5)), x_players))
+    res = run([g1, g2], ks=(0,))
+    vs = col(res, "g2", 0, "player_banned_vs_opp")  # blue acts first: the opponent is X
+    focus = col(res, "g2", 0, "player_ban_focus_opp")
+    assert all(vs[c] > 0 for c in (11, 12, 13, 14, 15)) and vs[16] == 0 and vs[1] == 0
+    # 5 bans, each attributed 1/5 to the top laner (roles of banned champions are unknown): 1 ban over 1 game.
+    # Champion 1 was played top once, so a candidate 1 is weighted by P(top | champion 1).
+    d = 0.5 ** (1.0 / 180)
+    assert math.isclose(focus[1], (d + 0.2) / (d + 1.0) * d / (d + 5.0), rel_tol=1e-5)
+    # without B0 in the line-up nothing is known about bans against X
+    g2b = mk("g2", 101.0, blue_team="A", red_team="X")
+    assert np.all(col(run([g1, g2b], ks=(0,)), "g2", 0, "player_banned_vs_opp") == 0)
+
+
+def test_pool_pinch_reacts_to_burns_and_bans():
+    # B0 has played champions 6 and 26 (top) once each; then meets A again
+    g1 = mk("g1", 100.0)
+    g2 = mk("g2", 101.0, rpicks=(26, 7, 8, 9, 10))
+    open_ = mk("g3", 102.0)
+    burned = mk("g3", 102.0, burned=((), (26,)))
+    share = lambda g, k=0: col(run([g1, g2, g], ks=(0, 1), pool_min_games=0.4), "g3", k, "player_pool_share_left_opp")
+    frac = lambda g, k=0: col(run([g1, g2, g], ks=(0, 1), pool_min_games=0.4), "g3", k, "player_pool_frac_left_opp")
+    n_left = lambda g, k=0: col(run([g1, g2, g], ks=(0, 1), pool_min_games=0.4), "g3", k, "player_pool_n_left_opp")
+    # with 26 burned for B, champion 6 is a larger share of what B0 has left, and less of the pool is left
+    assert share(burned)[6] > share(open_)[6] > 0
+    assert share(burned)[26] == 0 and frac(burned)[6] < frac(open_)[6]
+    assert n_left(open_)[6] > n_left(burned)[6]
+    # a ban this game has the same effect: g3 starts with blue banning 11; instead ban 26.
+    # At k=1 red (B) acts, so B's own pool is the "own" feature.
+    banned = mk("g3", 102.0, bbans=(26, 12, 13, 14, 15))
+    own = lambda g: col(run([g1, g2, g], ks=(1,), pool_min_games=0.4), "g3", 1, "player_pool_share_left_own")
+    assert own(banned)[6] > own(open_)[6] > 0 and own(banned)[26] == 0

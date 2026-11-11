@@ -25,10 +25,14 @@ class RoleBlock(StatBlock):
         self._probs: np.ndarray | None = None
 
     # --- as-of reads ---
-    def begin_game(self, pre: PreGame) -> None:
-        counts = self.counts.read(pre.t)
+    def probs_at(self, t: float) -> np.ndarray:
+        """(C, 5) matrix P(role | champion) from the games applied so far, decayed to ``t``."""
+        counts = self.counts.read(t)
         # Dirichlet smoothing toward uniform so unseen champions are "any role"
-        self._probs = (counts + self.prior_strength / 5.0) / (counts.sum(axis=1, keepdims=True) + self.prior_strength)
+        return (counts + self.prior_strength / 5.0) / (counts.sum(axis=1, keepdims=True) + self.prior_strength)
+
+    def begin_game(self, pre: PreGame) -> None:
+        self._probs = self.probs_at(pre.t)
 
     def role_probs(self) -> np.ndarray:
         """(C, 5) matrix P(role | champion) as of the current game."""

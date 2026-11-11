@@ -117,6 +117,26 @@ def test_model_learns_and_outputs_probabilities():
     np.testing.assert_allclose(p.sum(axis=1), 1.0)
 
 
+def test_seed_average_serves_the_mean_logit_and_explains_it_exactly():
+    from draft_analyzer.models.next_action import average_models
+
+    data = toy_data(n_actions=300, n_cand=12)
+    idx = np.arange(0, 250)
+    kw = dict(neg_per_action=6, params={"min_data_in_leaf": 20, "num_leaves": 7, "learning_rate": 0.1})
+    models = [NextActionModel(**{**kw, "params": {**kw["params"], "seed": s}}).fit(data, idx, None, num_rounds=30, seed=s)
+              for s in (0, 1, 2)]
+    for m, t in zip(models, (0.8, 0.9, 1.0)):
+        m.temperature = {"pick": t, "ban": t}
+    avg = average_models(models)
+    X = data.matrix(rows_of(data, np.arange(250, 300)), avg.features)
+    singles = np.stack([m.raw_matrix_scores(X) for m in models])
+    assert singles.std(axis=0).max() > 1e-6  # the seeds really differ
+    np.testing.assert_allclose(avg.raw_matrix_scores(X), singles.mean(axis=0), rtol=1e-9)
+    np.testing.assert_allclose(avg.contributions(X).sum(axis=1), avg.raw_matrix_scores(X), rtol=1e-6, atol=1e-8)
+    assert avg.temperature == {"pick": pytest.approx(0.9), "ban": pytest.approx(0.9)}
+    assert models[0].members == [] and len(avg.members) == 2
+
+
 def test_win_model_contributions_are_additive():
     rng = np.random.default_rng(0)
     n = 2000

@@ -97,6 +97,7 @@ class NextActionModel:
     best_iteration: int | None = None
     temperature: dict = field(default_factory=lambda: {"pick": 1.0, "ban": 1.0})
     history: list = field(default_factory=list)
+    members: list = field(default_factory=list)  # seed average: further (booster, best_iteration) pairs
 
     # ---- training ----
     def _dataset(self, data, action_idx, seed):
@@ -165,8 +166,17 @@ class NextActionModel:
             self.temperature[typ] = float(grid[int(np.argmin([group_logloss(s * a, l, starts, sizes) for a in grid]))])
 
     # ---- prediction ----
+    def _boosters(self) -> list:
+        return [(self.booster, self.best_iteration)] + list(getattr(self, "members", ()))
+
     def raw_matrix_scores(self, X: np.ndarray) -> np.ndarray:
-        return self.booster.predict(X, num_iteration=self.best_iteration, raw_score=True)
+        """Logits; for a seed average, the mean logit of its boosters."""
+        return np.mean([b.predict(X, num_iteration=it, raw_score=True) for b, it in self._boosters()], axis=0)
+
+    def contributions(self, X: np.ndarray) -> np.ndarray:
+        """(n, F + 1) SHAP contributions to the logit (last column: the base value). SHAP is
+        linear in the model, so the mean over the boosters explains the mean logit exactly."""
+        return np.mean([b.predict(X, num_iteration=it, pred_contrib=True) for b, it in self._boosters()], axis=0)
 
     def raw_scores(self, data: NextActionData, action_idx: np.ndarray, chunk: int = 4000) -> np.ndarray:
         out = []
@@ -189,6 +199,21 @@ class NextActionModel:
         gain = self.booster.feature_importance("gain", iteration=self.best_iteration)
         return (pd.DataFrame({"feature": self.features, "gain": gain / gain.sum()})
                 .sort_values("gain", ascending=False).reset_index(drop=True))
+
+
+def average_models(models: list[NextActionModel]) -> NextActionModel:
+    """One model that serves the mean logit of several fits of the same recipe (different seeds).
+    Temperatures are averaged; the first model's importance() stands for the group."""
+    first = models[0]
+    assert all(m.features == first.features for m in models), "seed averages need identical features"
+    out = NextActionModel(features=list(first.features), params=dict(first.params), neg_per_action=first.neg_per_action,
+                          half_life_days=first.half_life_days, booster=first.booster, best_iteration=first.best_iteration,
+                          history=list(first.history), members=[(m.booster, m.best_iteration) for m in models[1:]])
+    out.temperature = {k: float(np.mean([m.temperature[k] for m in models])) for k in first.temperature}
+    for attr in ("stage1_best_iteration", "stage1_tune_logloss"):
+        if hasattr(first, attr):
+            setattr(out, attr, getattr(first, attr))
+    return out
 
 
 def fit_with_refit(data: NextActionData, fit_idx: np.ndarray, tune_idx: np.ndarray, verbose: int = 0,

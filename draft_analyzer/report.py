@@ -131,15 +131,24 @@ def m3() -> None:
     # ------------------------------------------------------------------ next action
     A, B = load_result("na_A_presence_val"), load_result("na_B_presence_team_val")
     F = load_result("na_final_val")
+    served = summ["served"]
     out += [f"## 1. Next pick/ban model (validation: {sizes(F)}, {len(F)} actions)\n",
             "LightGBM scoring (draft state, candidate champion) pairs with a listwise softmax cross-entropy objective "
-            "over the available candidates (custom objective; outputs are probabilities). Training samples 60 negatives "
-            "per action with an importance-weight correction; evaluation always uses every available champion "
-            f"(about {data.actions.n_cand.mean():.0f} per action).\n",
-            f"Final configuration: regime **{summ['regime_choice']}**, "
-            f"**{'separate pick and ban models' if summ['use_separate'] else 'one joint model'}**.\n",
+            "over the available candidates (custom objective; outputs are probabilities). Evaluation always uses every "
+            f"available champion (about {data.actions.n_cand.mean():.0f} per action).\n",
+            f"Two training settings are used. The **experiments** (regimes, joint vs separate, ablations: sections 1.2 "
+            f"to 1.4) need many fits, so each is one model trained on 60 sampled negatives per action with an "
+            f"importance-weight correction. The **final model** (sections 1.1 and 1.5 to 1.8, the CLI and the web UI) "
+            f"uses the regime chosen there (**{summ['regime_choice']}**), trains on every candidate and is the mean "
+            f"logit of {len(served['seeds'])} fits with different seeds; both changes were chosen in "
+            f"`reports/tuning.md`. It is one joint model for picks and bans.\n",
             "### 1.1 Final model vs baselines\n",
             md(_verdict_note(ev.compare_table({"B_presence_team": B, "A_presence": A, "model": F}, "B_presence_team", NA_METRICS))), "",
+            "Final model against the single experiment model of the same regime (`diff` is final minus experiment):\n",
+            md(_verdict_note(ev.compare_table({"experiment_single": load_result(f"na_gbm_{summ['regime_choice']}_val"), "final": F},
+                                              "experiment_single", NA_METRICS))), "",
+            "The fits behind the final model, one per seed (validation): " + ", ".join(
+                f"log loss {m['log_loss']:.4f} / top-1 {m['top1']:.1%}" for m in served["val_single"]) + ".\n",
             "By action type and draft phase (final model):\n", md(ev.next_action_report(F)), "",
             "Same slices for baseline B, for reference:\n", md(ev.next_action_report(B)), ""]
     rows = []
@@ -247,7 +256,9 @@ def m3() -> None:
     # test
     T = load_result("na_final_test")
     TB, TA = load_result("na_B_presence_team_test"), load_result("na_A_presence_test")
-    out += [f"### 1.8 Test split, scored once ({sizes(T)}, {len(T)} actions; Worlds 2026 and later)\n",
+    out += [f"### 1.8 Test split ({sizes(T)}, {len(T)} actions; Worlds 2026 and later)\n",
+            "No choice was made on this split. It has been scored more than once (the first M3 model, and this final "
+            "model after the changes chosen on validation in `reports/tuning.md`), so it is no longer a first look.\n",
             md(_verdict_note(ev.compare_table({"B_presence_team": TB, "A_presence": TA, "model": T}, "B_presence_team", NA_METRICS))), "",
             md(ev.next_action_report(T)), ""]
 
