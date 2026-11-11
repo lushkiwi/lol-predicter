@@ -1,6 +1,6 @@
 # Build report: Phases 1 to 3 (M1, M2, M3)
 
-Written 2026-11-10, revised the same day after review (see "Changes after review" below). The spec (`lol-tool.md`) asks for a stop and a report after each milestone unless told to
+Written 2026-11-10, revised the same day after review and again on 2026-11-11 when the web UI was redesigned and made public (see "Changes after review" below). The spec (`lol-tool.md`) asks for a stop and a report after each milestone unless told to
 continue without check-ins; this build ran straight through, so the three milestone reports are collected here
 for review. Numbers come from the generated tables in `reports/`, which are the source of truth:
 
@@ -10,6 +10,8 @@ for review. Numbers come from the generated tables in `reports/`, which are the 
 | M2 baselines | `reports/M2_baselines.md` | |
 | M3 models | `reports/M3_models.md` | |
 | History-only leagues | `reports/history_leagues.md` | |
+| Accuracy round | `reports/tuning.md`, `reports/player_targeting.md` | |
+| Public site | | "Hosting it" in `README.md` |
 
 Phases 4 (solo queue data) and 5 (LLM explanation layer) were not started.
 
@@ -22,6 +24,8 @@ Phases 4 (solo queue data) and 5 (LLM explanation layer) were not started.
 - **The win model does not beat the baseline.** With the full draft known, logistic regression scores log loss
   0.6369 against 0.6415 for Elo + side + first pick: a tie (difference -0.0046, CI -0.0133 to +0.0043). On the
   test split it is slightly worse than the baseline, also a tie. The draft effect is not detectable in this data.
+- **The web UI is public** at https://web-production-4e4960db.up.railway.app (since 2026-11-11, data through
+  2026-11-09). A prediction takes about 0.2 s on the host.
 - **Oracle's Elixir alone is enough for draft order.** Leaguepedia was only needed as a cross-check, and it
   agrees on first pick and side in every game compared.
 
@@ -52,6 +56,17 @@ Made after the first version of this report, at the user's request. All numbers 
   evidence and one was rejected; see "Accuracy round" under M3. Validation log loss went from 2.562 to 2.528 and
   top-1 from 27.4% to 28.2%. The test split was scored a third time for the new model; no decision used it.
 - **Web UI** added (`python -m draft_analyzer.web`), see the end of the M3 section.
+- **Web UI redesigned (2026-11-11).** Picks fill the team columns as splash art; regions sit on the background
+  instead of in cards; colour has three roles (blue and red for the teams, gold for likelihood); the page serves
+  its own typefaces (Sofia Sans, Sofia Sans Condensed); each candidate's reasons are given in words that state a
+  fact and name the team, with the numbers in a hover card; a phone layout below 860 px.
+- **Explanations now compare a candidate with the 12 likeliest champions**, not with every available one, which
+  made a prediction about five times faster on the host. Probabilities are unchanged; factor values are not
+  comparable with earlier ones. See "Explanations and CLI".
+- **Made public (2026-11-11).** The site runs as one container on Railway; the repository is public under the
+  MIT licence. The server gained a per-address budget, remembered answers, a queue limit, a size limit on the
+  draft state, a health check and an About panel with the data date, credits and Riot's notice. How to deploy,
+  and what was measured, is under "Hosting it" in `README.md`.
 
 ## M1: ingestion and the unified draft table
 
@@ -279,15 +294,30 @@ taken (Orianna 7 times in the top 15, Milio 3 times); the actual choice was rank
 - `predict.py` has both modes from the spec. Replay uses the validated model with features as-of the game; live
   mode uses a refit on all data and accepts earlier games of the series either from the dataset or inline in the
   state file. Both were run end to end.
-- `web/server.py` and `web/static/` are a local web UI on the live path (`python -m draft_analyzer.web`). The
-  user clicks each ban and pick as a real draft happens; the page shows the probability of every available
-  champion (likely ones large, the long tail small), the top 12 candidates with their main factors and a hover
-  card with the full breakdown, a vertical evaluation bar for win probability with the baseline marked, a graph
-  of win probability over the draft, and a recap of the model's rating of each action once a draft is complete. Recording a game's winner starts the next game
-  of the series with Fearless burns applied. A prediction takes about 0.25 s (three boosters of 1,050 to 1,400 trees
-  each, with exact SHAP). Checked in headless Chrome at 1440, 1280 and
-  1100 px wide and at phone width (390 px): a full draft with a missed ban and undos, switching first pick, a
-  second Fearless game, reload, no console errors. It has not been tried in other browsers or on a real phone. There is no automatic feed of live drafts; entry is by hand.
+- `web/server.py` and `web/static/` are the web UI on the live path (`python -m draft_analyzer.web` locally; public
+  at the address in the headline). The user clicks each ban and pick as a real draft happens. The page shows the
+  picks as splash art in the two team columns, the probability of every available champion (likely ones large,
+  the long tail small), the top 12 candidates with their reasons in words and a hover card with the full
+  breakdown, a vertical evaluation bar for win probability with the baseline marked, a graph of win probability
+  over the draft, and a recap of the model's rating of each action once a draft is complete. Recording a game's
+  winner starts the next game of the series with Fearless burns applied. There is no automatic feed of live
+  drafts; entry is by hand.
+- **Reasons in words.** For each factor group the page takes the feature that drives it, compares the
+  candidate's value with the field's weighted value, and states the fact ("T1 picked it lately", "pairs with
+  Gen.G's picks"). A fact is used only when it points the way the factor does (above the field and counting for,
+  or below and counting against); otherwise a stock phrase for the group is shown. The phrases are a hand-written
+  table in `web/static/app.js` (`FACT`, `REASON`) and were checked by reading them at five points of a draft, not
+  by a test.
+- **Speed.** A prediction takes about 0.03 s on a 15-core laptop and 0.19 s on the host (8 shared cores, about
+  3.4 times slower each). Before the field was narrowed to 12 candidates it took 0.25 s and 1.0 s. The server
+  computes one prediction at a time; it remembers every answer, gives each address 40 new predictions a minute
+  and tells the page to retry when more than 20 requests are waiting.
+- **Checked.** In headless Chrome at 1440, 1280 and 1100 px wide and at phone width (390 px): a full draft with a
+  missed ban and undos, search, role filter, switching first pick, a second Fearless game, reload, no console
+  errors. On the public site: page, assets, predictions, the rate limit (including that a visitor cannot dodge it
+  by claiming another address), bad and oversized input. Not tried in Safari or Firefox or on a real phone. The
+  load test of 40 simultaneous drafts (all answered within 14 s, median 7 s) was run before the queue limit was
+  raised from 8 to 20 and has not been repeated.
 
 ## Leakage
 
@@ -329,3 +359,8 @@ taken (Orianna 7 times in the top 15, Milio 3 times); the actual choice was rank
 8. **Validation has been reused.** The accuracy round made four adopt-or-reject choices on the same 651 games.
    The Worlds 2026 final is not in the data and would be a clean test of the final model.
 9. **No live draft feed.** The web UI and CLI take the draft by hand.
+10. **The public site does not update itself.** Its data stops at 2026-11-09 (shown on the page). A refresh is
+    manual: ingest, retrain (about 1 h 45), `python -m draft_analyzer.deploy`, upload. Nothing schedules it.
+11. **Launch loose ends.** The Riot notice in the About panel was written from memory and should be compared with
+    Riot's current wording; the site uses the host's default address; the per-address budget relies on the
+    host's `X-Real-IP` header, which was checked from one network only.

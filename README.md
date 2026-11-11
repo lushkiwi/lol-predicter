@@ -76,8 +76,8 @@ are behind the summary at the top left. Picks fill the team columns as splash ar
 reasons are given in words that name the team and the fact behind them ("T1 picked it lately", "pairs with
 Gen.G's picks"), with the numbers in the hover card. When a draft is complete the grid is replaced by a recap of how the model rated each action; record the
 winner and the next game of the series starts with the Fearless burns applied. Below 860 px wide the page
-becomes one scrolling column with the two teams side by side. By default the server runs on localhost only; it keeps the models in memory (about 0.25 s per prediction on a
-15-core laptop; see Hosting it for small servers).
+becomes one scrolling column with the two teams side by side. By default the server runs on localhost only; it keeps the models in memory (about 0.03 s per prediction on a
+15-core laptop, 0.2 s on the public host; see Hosting it).
 Champion icons and splash art are fetched from Data Dragon once and cached in `data/raw/ddragon/img/`. The page
 itself loads nothing from other hosts: its typefaces, Sofia Sans and Sofia Sans Condensed (SIL Open Font License,
 `draft_analyzer/web/static/fonts/OFL.txt`), are served from `static/fonts/`.
@@ -90,13 +90,14 @@ reads (about 50 MB), and checks that the server starts from it:
 
 ```bash
 .venv/bin/python -m draft_analyzer.deploy          # writes ./deploy (gitignored); rerun after retraining
-railway up deploy --path-as-root                   # Railway builds the Dockerfile; any container host works
+railway up deploy --path-as-root --service web --environment production   # Railway builds the Dockerfile
 ```
 
 The container listens on `PORT`, answers `/health` once the models are loaded, runs unprivileged and needs
 about 560 MB of memory. Two settings live on the host, not in the repository: the variable `TRUST_PROXY=1`, so the
 per-visitor limit sees the visitor's address (Railway sends it as `X-Real-IP`; never set it where visitors reach
 the server directly), and the health check path `/health`, so a deploy only goes live once the models have loaded.
+To run something inside the running service, register an SSH key with `railway ssh keys add`.
 On Railway the service was created with `railway add --service web --variables TRUST_PROXY=1` and the health
 check set with `railway environment edit --json` (`deploy.healthcheckPath`); a `railway.json` in the upload was
 not picked up and that format is being retired.
@@ -169,7 +170,8 @@ draft_analyzer/
   features/  asof.py  dataset.py  champion.py  team.py  player.py  pairwise.py  roles.py  context.py  elo.py
   models/    baselines.py  next_action.py  win.py
 tests/       docs/       reports/       examples/
-data/raw/    data/processed/            # gitignored
+Dockerfile   requirements.txt   requirements-serve.txt   LICENSE
+data/raw/    data/processed/    deploy/  # gitignored
 ```
 
 ## Data
