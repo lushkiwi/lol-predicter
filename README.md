@@ -1,5 +1,7 @@
 # LoL Pro Draft Analyzer
 
+**Live: https://web-production-4e4960db.up.railway.app** (data through 9 November 2026)
+
 Given a professional League of Legends draft in progress, this predicts:
 
 1. a ranked probability distribution over the next pick or ban,
