@@ -137,13 +137,22 @@ input:focus, select:focus { outline: none; border-color: var(--muted); }
 .spacer { flex: 1; }
 
 .setup-wrap { position: relative; }
+/* Anything that opens a list of choices looks the same: its current value, a chevron, and a rule
+   under both that brightens when pointed at. */
+.chevron {
+  flex: none; display: inline-block; width: 7px; height: 7px; margin: -4px 2px 0 0;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(45deg); transition: transform 0.15s var(--ease), margin 0.15s var(--ease); color: var(--muted);
+}
 .setup-btn {
-  background: transparent; border: 0; border-radius: 3px; padding: 4px 6px; cursor: pointer;
-  color: var(--muted); white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 9px;
+  background: transparent; border: 0; border-bottom: 1px solid var(--line-2); border-radius: 0; padding: 4px 4px 4px 2px; cursor: pointer;
+  color: var(--muted); white-space: nowrap; transition: border-color 0.15s, color 0.15s;
 }
 .setup-btn b { color: var(--text); font-weight: 600; }
-.setup-btn .caret { margin-left: 6px; font-size: 10px; }
-.setup-btn:hover, .setup-btn[aria-expanded=true] { background: var(--raise); color: var(--text); }
+.setup-btn:hover, .setup-btn[aria-expanded=true] { border-bottom-color: var(--text); color: var(--text); }
+.setup-btn:hover .chevron, .setup-btn[aria-expanded=true] .chevron, .combo:hover .chevron, .combo:focus-within .chevron { color: var(--text); }
+.setup-btn[aria-expanded=true] .chevron, .combo:has(.team-input[aria-expanded=true]) .chevron { transform: rotate(225deg); margin-top: 4px; }
 .setup-pop {
   position: absolute; left: 0; top: calc(100% + 8px); z-index: 40; display: grid; gap: 10px; padding: 14px 16px;
   background: var(--raise); border: 1px solid var(--line-2); border-radius: 4px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
@@ -226,13 +235,14 @@ input:focus, select:focus { outline: none; border-color: var(--muted); }
 
 /* ---------- team columns ---------- */
 .team { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; overflow-x: hidden; }
-.team-top { display: grid; gap: 2px; }
+.team-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 .team-rule { display: block; width: 34px; height: 3px; margin-bottom: 6px; }
 .team-blue .team-rule { background: var(--blue); }
 .team-red .team-rule { background: var(--red); justify-self: end; }
-.team-head { display: flex; align-items: baseline; gap: 8px; }
+.team-head { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .team-red .team-head { flex-direction: row-reverse; }
-.fp-tag { font-size: 12px; color: var(--muted); white-space: nowrap; flex: none; }
+.fp-tag { font-size: 12px; color: var(--muted); white-space: nowrap; flex: none; margin-left: auto; }
+.team-red .fp-tag { margin-left: 0; margin-right: auto; }
 .team-score { font-size: 12px; color: var(--muted); }
 .team-red .team-score { text-align: right; }
 .team-score:empty { display: none; }
@@ -243,11 +253,21 @@ input:focus, select:focus { outline: none; border-color: var(--muted); }
 .team input[type=text]:focus { border-color: transparent; border-bottom-color: var(--muted); }
 .team-red input[type=text] { text-align: right; }
 
-.combo { position: relative; flex: 1; min-width: 0; }
+.combo {
+  position: relative; flex: 0 1 auto; min-width: 0; max-width: 100%;
+  display: inline-flex; align-items: center; gap: 9px; padding-bottom: 3px;
+  border-bottom: 1px solid var(--line-2); cursor: pointer; transition: border-color 0.15s;
+}
+.combo:hover { border-bottom-color: var(--muted); }
+.combo:focus-within { border-bottom-color: var(--text); }
 .team-input {
-  width: 100%; padding-top: 0; padding-bottom: 1px; text-overflow: ellipsis;
+  flex: 0 1 auto; min-width: 0; padding-top: 0; padding-bottom: 0; text-overflow: ellipsis; cursor: pointer;
   font: 600 30px/1.05 var(--display) !important; font-stretch: condensed; text-transform: uppercase; letter-spacing: 0.02em;
 }
+.team input.team-input, .team input.team-input:hover, .team input.team-input:focus { border: 0; text-align: left; }
+.team-input:focus { cursor: text; }
+.team-input::placeholder { color: var(--faint); }
+.team-mirror { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; white-space: pre; }
 /* placed on the viewport by the script (the team column scrolls, so it would clip a list inside it) */
 .combo-list {
   position: fixed; z-index: 40; max-height: 420px; overflow: auto; text-align: left;

@@ -549,7 +549,9 @@ function renderSetup() {
   const fearless = { hard: 'Hard Fearless', soft: 'Soft Fearless', none: 'No Fearless' }[S.fearless];
   const sb = $('setupBtn');
   sb.textContent = '';
-  sb.append(el('b', null, S.league), document.createTextNode(` · Patch ${S.patch} · ${fearless}`), el('span', 'caret', '▾'));
+  const label = el('span');
+  label.append(el('b', null, S.league), document.createTextNode(` · Patch ${S.patch} · ${fearless}`));
+  sb.append(label, el('span', 'chevron'));
 }
 
 /* ---------- team columns ---------- */
@@ -564,17 +566,33 @@ function buildTeamColumn(side) {
   const fpTag = el('div', 'fp-tag', 'first pick');
   fpTag.dataset.role = 'fp';
 
+  // The team name is a drop-down you can also type in. It has to look like one: the field is
+  // only as wide as the name, with a chevron beside it and a rule under both.
   const combo = el('div', 'combo');
+  combo.title = 'Choose a team, or type a name';
   const input = el('input', 'team-input');
   input.type = 'text';
   input.autocomplete = 'off';
   input.spellcheck = false;
+  input.placeholder = 'Team';
   input.setAttribute('aria-label', `${side} team`);
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-expanded', 'false');
+  input.setAttribute('aria-haspopup', 'listbox');
   input.dataset.role = 'team';
+  const caret = el('span', 'chevron');
+  caret.setAttribute('aria-hidden', 'true');
+  const mirror = el('span', 'team-input team-mirror');   // same type as the field, to measure the name
+  mirror.setAttribute('aria-hidden', 'true');
+  input._mirror = mirror;
   const list = el('div', 'combo-list');
   list.hidden = true;
   list.setAttribute('role', 'listbox');
-  combo.append(input, list);
+  combo.append(input, caret, mirror, list);
+  combo.addEventListener('mousedown', (e) => {   // the chevron and the space around the name open it too
+    if (e.target !== input && !list.contains(e.target)) { e.preventDefault(); input.focus(); }
+  });
+  input.addEventListener('input', () => fitTeamInput(input));
   head.append(combo, fpTag);
   bindCombo(side, input, list);
 
@@ -627,6 +645,14 @@ function buildTeamColumn(side) {
   col.appendChild(burned);
 }
 
+// make the team field exactly as wide as the name in it, so the chevron sits beside the name
+function fitTeamInput(input) {
+  const m = input._mirror;
+  if (!m) return;
+  m.textContent = input.value || input.placeholder || ' ';
+  input.style.width = Math.ceil(m.getBoundingClientRect().width) + 3 + 'px';
+}
+
 function bindCombo(side, input, list) {
   let active = -1;
   const options = () => Array.from(list.querySelectorAll('.opt'));
@@ -642,8 +668,8 @@ function bindCombo(side, input, list) {
     list.style.top = Math.round(top) + 'px';
     list.style.maxHeight = Math.max(140, Math.min(420, window.innerHeight - top - 12)) + 'px';
   };
-  const open = () => { fill(false); list.hidden = false; place(); };
-  const close = () => { list.hidden = true; active = -1; };
+  const open = () => { fill(false); list.hidden = false; input.setAttribute('aria-expanded', 'true'); place(); };
+  const close = () => { list.hidden = true; active = -1; input.setAttribute('aria-expanded', 'false'); };
   const follow = () => { if (!list.hidden) place(); };
   window.addEventListener('resize', follow);
   window.addEventListener('scroll', follow, { passive: true });
@@ -718,6 +744,7 @@ function renderTeam(side) {
   const col = side === 'blue' ? $('teamBlue') : $('teamRed');
   const input = col.querySelector('[data-role=team]');
   if (document.activeElement !== input) input.value = S[side].team;
+  fitTeamInput(input);
   col.querySelector('[data-role=fp]').hidden = firstPickSide() !== side;
   col.querySelectorAll('[data-role=player]').forEach((p) => {
     if (document.activeElement !== p) p.value = S[side].players[+p.dataset.i];
@@ -1464,7 +1491,10 @@ function bindEvents() {
   let rz = 0;
   window.addEventListener('resize', () => {
     clearTimeout(rz);
-    rz = setTimeout(() => { if (R && R.win) renderGraph(R.win); }, 100);
+    rz = setTimeout(() => {
+      if (R && R.win) renderGraph(R.win);
+      document.querySelectorAll('.team-input[data-role=team]').forEach(fitTeamInput); // its type size follows the window
+    }, 100);
   });
   // another tab changed the state
   window.addEventListener('storage', (e) => {
@@ -1502,6 +1532,8 @@ async function boot() {
   buildGrid();
   bindEvents();
   render();
+  // the page's own typeface arrives a moment after the first paint and is narrower than the fallback
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => document.querySelectorAll('.team-input[data-role=team]').forEach(fitTeamInput));
   booted = true;
   schedulePredict();
 }
