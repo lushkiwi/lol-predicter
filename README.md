@@ -74,8 +74,7 @@ are behind the summary at the top left. Picks fill the team columns as splash ar
 reasons are given in words that name the team and the fact behind them ("T1 picked it lately", "pairs with
 Gen.G's picks"), with the numbers in the hover card. When a draft is complete the grid is replaced by a recap of how the model rated each action; record the
 winner and the next game of the series starts with the Fearless burns applied. Below 860 px wide the page
-becomes one scrolling column with the two teams side by side. The previous look is kept at `/classic` for
-comparison. The server runs on localhost only and keeps the models in memory (about 0.25 s per prediction).
+becomes one scrolling column with the two teams side by side. The server runs on localhost only and keeps the models in memory (about 0.25 s per prediction).
 Champion icons and splash art are fetched from Data Dragon once and cached in `data/raw/ddragon/img/`; the page
 itself loads nothing from other hosts, so it uses the condensed fonts already on the machine.
 

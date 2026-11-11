@@ -10,7 +10,6 @@ Endpoints
     POST /api/predict            body: a draft state (same fields as the CLI state file); returns predictions
     GET  /img/champion/<id>.png  champion icon from Data Dragon, cached on disk after the first request
     GET  /img/splash/<id>.jpg    champion splash art (face-centred crop) from Data Dragon, cached the same way
-    GET  /classic                the previous look of the page, kept for comparison
 
 The server keeps the models and the as-of engine in memory (``predict.LiveSession``), so a
 prediction takes a fraction of a second. It listens on localhost only.
@@ -153,11 +152,6 @@ def champion_splash(name: str) -> FileResponse:
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
-
-
-@app.get("/classic")
-def classic() -> FileResponse:
-    return FileResponse(STATIC / "classic" / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 class _RevalidatedStatic(StaticFiles):
