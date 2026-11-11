@@ -74,7 +74,7 @@ with their three main factors (hover a row for the full breakdown down to single
 chess-style evaluation bar for win probability, with a graph over the draft. League, patch and Fearless mode
 are behind the summary at the top left. Picks fill the team columns as splash art, and each candidate's main
 reasons are given in words that name the team and the fact behind them ("T1 picked it lately", "pairs with
-Gen.G's picks"), with the numbers in the hover card. When a draft is complete the grid is replaced by a recap of how the model rated each action; record the
+Gen.G's picks"), with the numbers in that card. When a draft is complete the grid is replaced by a recap of how the model rated each action; record the
 winner and the next game of the series starts with the Fearless burns applied. Below 860 px wide the page
 becomes one scrolling column: the win bar, the two teams side by side, whose turn it is, the likely choices, the
 win details, then search and every champion. By default the server runs on localhost only; it keeps the models in memory (about 0.03 s per prediction on a

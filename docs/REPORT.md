@@ -301,7 +301,7 @@ taken (Orianna 7 times in the top 15, Milio 3 times); the actual choice was rank
   at the address in the headline). The user clicks each ban and pick as a real draft happens. The page shows the
   picks as splash art in the two team columns, the probability of every available champion (likely ones large,
   the long tail small), the top 12 candidates with their reasons in words and a hover card with the full
-  breakdown, a vertical evaluation bar for win probability with the baseline marked, a graph of win probability
+  breakdown (on a touch screen an "i" button on each row opens it as a sheet along the bottom), a vertical evaluation bar for win probability with the baseline marked, a graph of win probability
   over the draft, and a recap of the model's rating of each action once a draft is complete. Recording a game's
   winner starts the next game of the series with Fearless burns applied. There is no automatic feed of live
   drafts; entry is by hand.
@@ -318,7 +318,9 @@ taken (Orianna 7 times in the top 15, Milio 3 times); the actual choice was rank
 - **Checked.** In headless Chrome at 1440, 1280 and 1100 px wide and at phone width (390 px): a full draft with a
   missed ban and undos, search, role filter, switching first pick, a second Fearless game, reload, no console
   errors. On the public site: page, assets, predictions, the rate limit (including that a visitor cannot dodge it
-  by claiming another address), bad and oversized input. Not tried in Safari or Firefox or on a real phone. The
+  by claiming another address), bad and oversized input. With touch emulated at 390 px: one tap on a suggestion enters it, the "i" button
+  opens and closes the breakdown, and a touch outside closes it without entering anything. Not tried in Safari or
+  Firefox or on a real phone; the one-tap fix answers an iPhone behaviour that Chrome does not reproduce. The
   load test of 40 simultaneous drafts (all answered within 14 s, median 7 s) was run before the queue limit was
   raised from 8 to 20 and has not been repeated.
 
