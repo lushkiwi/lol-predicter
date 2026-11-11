@@ -34,7 +34,7 @@ const GROUP_LABEL = {
 };
 const groupLabel = (g) => GROUP_LABEL[g] || g;
 // What one feature says about a champion, in words: [when it is above the field on that
-// feature, when it is below]. The field is the available champions weighted by how likely each
+// feature, when it is below]. The field is the 12 likeliest champions weighted by how likely each
 // is, the same comparison the factor numbers use. {A} is the team acting now, {O} its opponent.
 // A reason uses a fact only when the fact points the way the reason does (above the field and
 // counting for, or below it and counting against); otherwise it falls back to REASON.

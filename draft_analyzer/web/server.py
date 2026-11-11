@@ -21,8 +21,9 @@ Hosting it publicly is a matter of environment variables (see ``Dockerfile``):
     PREDICT_PER_MINUTE    new predictions one address may ask for per minute (default 40, 0 = no limit;
                           answers the server already remembers are free)
 
-A prediction is computed by one request at a time (about 1.8 CPU-seconds, mostly the exact
-explanations). Three things keep that from becoming a queue: answers are remembered, so a state
+A prediction is computed by one request at a time (about 0.2 s on a small host, see
+explain.py for why explanations cover the 12 likeliest champions). Three things keep that
+from becoming a queue: answers are remembered, so a state
 somebody already asked for (everyone's first view, the popular lines of a draft) costs nothing;
 each address has a per-minute budget; and when too many requests are already waiting the server
 says so at once instead of making everyone wait longer.
@@ -52,7 +53,7 @@ ROLE_LABELS = ("top", "jungle", "mid", "bot", "support")
 RECENT_TEAM_DAYS = 400
 
 MAX_STATE_BYTES = 64 * 1024  # a full five-game series with rosters is under 10 kB
-MAX_WAITING = 8              # requests allowed to queue for the model before new ones are told to retry
+MAX_WAITING = 20             # requests allowed to queue for the model (about 4 s of work) before new ones are told to retry
 CACHE_ENTRIES = 600          # remembered answers, about 30 kB each
 
 app = FastAPI(title="LoL draft analyzer")
@@ -228,7 +229,7 @@ def predict(state: dict, request: Request) -> Response:
     with _waiting_guard:
         if _waiting >= MAX_WAITING:
             raise HTTPException(status_code=503, detail="busy: many drafts are being predicted right now; try again in a moment",
-                                headers={"Retry-After": "3"})
+                                headers={"Retry-After": "2"})
         _waiting += 1
     try:
         with _lock:

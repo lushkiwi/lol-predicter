@@ -99,11 +99,12 @@ On Railway the service was created with `railway add --service web --variables T
 check set with `railway environment edit --json` (`deploy.healthcheckPath`); a `railway.json` in the upload was
 not picked up and that format is being retired.
 
-One prediction costs about 1.8 CPU-seconds, almost all of it the exact explanations, and the server computes one
-at a time: 1.1 s on 2 cores, 0.6 s on 4 (measured in the container). To keep that from becoming a queue the
-server remembers every answer it has given (everyone's first view is instant), gives each address 40 new
-predictions a minute, and tells the page to retry when more than 8 requests are already waiting. In a test of 40
-different drafts arriving in the same second on 2 cores, all were answered, the median after 23 s.
+A prediction takes about 0.2 s on Railway (8 shared cores, which are about 3.4 times slower than a laptop's)
+and the server computes one at a time. To keep that from becoming a queue the server remembers every answer it
+has given (everyone's first view is instant), gives each address 40 new predictions a minute, and tells the page
+to retry when more than 20 requests are already waiting. Explanations are the expensive part, which is why they
+compare each candidate with the 12 likeliest champions rather than all ~150: against the whole field a
+prediction took 1.0 s on the same host (`docs/REPORT.md`, "Explanations and CLI").
 
 ## Predicting from the command line
 

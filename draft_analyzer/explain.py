@@ -5,10 +5,17 @@ before export; the raw feature values sit underneath each group.
 
 * Next-action model: exact TreeSHAP of the candidate's score (LightGBM ``pred_contrib``, the
   same algorithm as ``shap.TreeExplainer``). Because the output is a softmax across
-  candidates, the useful quantity is how a candidate differs from the field, so each group's
+  candidates, the useful quantity is how a candidate differs from its rivals, so each group's
   contribution is also reported "relative": the candidate's SHAP minus the probability-
-  weighted mean SHAP of all candidates. Context features (same for every candidate) mostly
-  cancel in the relative view, which is what one wants when asking "why this champion".
+  weighted mean SHAP of the field. The field is the ``field_size`` likeliest candidates
+  (12 by default, the choices actually in play), weighted by their probabilities: the
+  question answered is "why this champion rather than the other likely ones". Context
+  features (the same for every candidate) mostly cancel in the relative view.
+  ``field_size=None`` compares with every available champion instead. That is about ten
+  times the work, because SHAP is the expensive step and is then needed for all ~150
+  candidates (0.9 s instead of 0.09 s per draft state on a small host), and it lets the
+  long tail of champions nobody would take set the baseline. The probabilities themselves
+  never depend on this choice.
 * Win model: logistic regression, for which SHAP is exact and closed-form:
   coef * (x - training mean), in logit units.
 """
@@ -28,52 +35,61 @@ def _group_indices(names: list[str]) -> dict[str, list[int]]:
     return dict(groups)
 
 
+FIELD_SIZE = 12  # the likeliest candidates a champion's factors are compared with
+
+
 def explain_next_action(model, X: np.ndarray, cand_ids: np.ndarray, champion_names: list[str], action_type: str,
                         top_k: int = 10, top_groups: int = 4, features_per_group: int = 4,
-                        all_probs: bool = False) -> dict:
+                        all_probs: bool = False, field_size: int | None = FIELD_SIZE) -> dict:
     """Explain the top-k candidates of one action.
 
     ``X`` is the (n_available, F) feature matrix in ``model.features`` order and ``cand_ids``
-    the champion ids of its rows.
+    the champion ids of its rows. Probabilities come from the scores of every candidate; SHAP
+    is computed only for the field (see the module docstring), which always includes the top-k.
     """
     temp = model.temperature.get(action_type, 1.0)
-    contrib = model.contributions(X) * temp
-    phi, base = contrib[:, :-1], contrib[:, -1]
-    scores = phi.sum(axis=1) + base
+    scores = model.raw_matrix_scores(X) * temp
     p = np.exp(scores - scores.max())
     p /= p.sum()
+    by_prob = np.argsort(-p, kind="stable")      # every candidate, likeliest first
+    cand_ids = np.asarray(cand_ids)
+
+    n_field = len(p) if field_size is None else min(len(p), max(top_k, field_size))
+    rows = by_prob[:n_field]                     # the field; row k below is the k-th likeliest candidate
+    w = p[rows] / p[rows].sum()                  # its weights
+    Xf = np.asarray(X, dtype=float)[rows]
+    phi = (model.contributions(X[rows]) * temp)[:, :-1]
     groups = _group_indices(model.features)
     gnames = list(groups)
-    G = np.stack([phi[:, idx].sum(axis=1) for idx in groups.values()], axis=1)  # (n, n_groups)
-    G_rel = G - (p[:, None] * G).sum(axis=0, keepdims=True)
-    phi_rel = phi - (p[:, None] * phi).sum(axis=0, keepdims=True)
-    # the field each candidate is compared with, feature by feature: like the relative SHAP values,
-    # the available champions weighted by how likely each one is
-    field = (p[:, None] * np.asarray(X, dtype=float)).sum(axis=0)
-    order = np.argsort(-p)[:top_k]
+    G = np.stack([phi[:, idx].sum(axis=1) for idx in groups.values()], axis=1)  # (n_field, n_groups)
+    G_rel = G - (w[:, None] * G).sum(axis=0, keepdims=True)
+    phi_rel = phi - (w[:, None] * phi).sum(axis=0, keepdims=True)
+    field = (w[:, None] * Xf).sum(axis=0)        # the field's weighted value of each feature
+
     out = []
-    for rank, i in enumerate(order, 1):
-        top = np.argsort(-np.abs(G_rel[i]))[:top_groups]
+    for k in range(min(top_k, n_field)):
+        top = np.argsort(-np.abs(G_rel[k]))[:top_groups]
         factors = []
         for gi in top:
             idx = groups[gnames[gi]]
-            feat_order = sorted(idx, key=lambda j: -abs(phi_rel[i, j]))[:features_per_group]
+            feat_order = sorted(idx, key=lambda j: -abs(phi_rel[k, j]))[:features_per_group]
             factors.append({
                 "group": gnames[gi],
-                "shap_relative": round(float(G_rel[i, gi]), 4),
-                "shap_raw": round(float(G[i, gi]), 4),
-                "direction": "for" if G_rel[i, gi] > 0 else "against",
-                "features": [{"name": model.features[j], "value": round(float(X[i, j]), 4),
+                "shap_relative": round(float(G_rel[k, gi]), 4),
+                "shap_raw": round(float(G[k, gi]), 4),
+                "direction": "for" if G_rel[k, gi] > 0 else "against",
+                "features": [{"name": model.features[j], "value": round(float(Xf[k, j]), 4),
                               "field_mean": round(float(field[j]), 4),
-                              "shap_relative": round(float(phi_rel[i, j]), 4)} for j in feat_order],
+                              "shap_relative": round(float(phi_rel[k, j]), 4)} for j in feat_order],
             })
-        out.append({"rank": rank, "champion": champion_names[int(cand_ids[i])], "probability": round(float(p[i]), 4),
-                    "top_factors": factors})
+        out.append({"rank": k + 1, "champion": champion_names[int(cand_ids[rows[k]])],
+                    "probability": round(float(p[rows[k]]), 4), "top_factors": factors})
     res = {"action_type": action_type, "n_candidates": int(len(cand_ids)), "units": "log-odds (softmax logit)",
+           "field": {"size": int(n_field), "probability": round(float(p[rows].sum()), 4)},
            "candidates": out}
     if all_probs:  # every available champion, most likely first
         res["probabilities"] = [{"champion": champion_names[int(cand_ids[i])], "probability": round(float(p[i]), 5)}
-                                for i in np.argsort(-p)]
+                                for i in by_prob]
     return res
 
 

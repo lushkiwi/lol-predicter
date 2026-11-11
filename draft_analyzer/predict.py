@@ -318,7 +318,7 @@ def render(out: dict) -> str:
     if na:
         lines += ["", f"Next: action {na['action_index']} = {na['acting_side']} {na['action_type']} "
                       f"({na['phase']}, {na['draft_slot']} slot), {na['n_candidates']} champions available",
-                  f"  {'#':>2}  {'champion':<16} {'prob':>6}   top factors (relative log-odds vs the field)"]
+                  f"  {'#':>2}  {'champion':<16} {'prob':>6}   top factors (log-odds vs the other likely choices)"]
         for c in na["candidates"]:
             fac = ";  ".join(f"{f['group']} {f['shap_relative']:+.2f}" for f in c["top_factors"][:3])
             lines.append(f"  {c['rank']:>2}  {c['champion']:<16} {c['probability']:>6.1%}   {fac}")

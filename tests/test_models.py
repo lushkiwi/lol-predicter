@@ -137,7 +137,7 @@ def test_seed_average_serves_the_mean_logit_and_explains_it_exactly():
     assert models[0].members == [] and len(avg.members) == 2
 
 
-def test_explanation_compares_each_feature_with_the_weighted_field():
+def test_explanation_compares_each_candidate_with_the_likely_field():
     from draft_analyzer.explain import explain_next_action
 
     data = toy_data(n_actions=300, n_cand=12)
@@ -146,17 +146,32 @@ def test_explanation_compares_each_feature_with_the_weighted_field():
     rows = rows_of(data, np.array([260]))
     X, ids = data.matrix(rows, m.features), data.row_champ[rows]
     names = [f"c{i}" for i in range(int(data.row_champ.max()) + 1)]
-    out = explain_next_action(m, X, ids, names, "pick", top_k=3, all_probs=True)
-    prob = {d["champion"]: d["probability"] for d in out["probabilities"]}
-    weights = np.array([prob[names[int(c)]] for c in ids])
-    field = (weights[:, None] * X).sum(axis=0) / weights.sum()
-    for cand in out["candidates"]:
-        row = int(np.flatnonzero(ids == names.index(cand["champion"]))[0])
-        for factor in cand["top_factors"]:
-            for feat in factor["features"]:
-                j = m.features.index(feat["name"])
-                assert feat["value"] == pytest.approx(float(X[row, j]), abs=1e-3)
-                assert feat["field_mean"] == pytest.approx(float(field[j]), abs=2e-3)
+    scores = m.raw_matrix_scores(X) * m.temperature["pick"]
+    p = np.exp(scores - scores.max()); p /= p.sum()
+    by_prob = np.argsort(-p, kind="stable")
+
+    whole = explain_next_action(m, X, ids, names, "pick", top_k=3, all_probs=True, field_size=None)
+    likely = explain_next_action(m, X, ids, names, "pick", top_k=3, all_probs=True, field_size=5)
+    # probabilities and ranking come from every candidate, whatever the field
+    assert whole["probabilities"] == likely["probabilities"]
+    assert [d["champion"] for d in likely["probabilities"]] == [names[int(ids[i])] for i in by_prob]
+    assert [c["champion"] for c in likely["candidates"]] == [names[int(ids[i])] for i in by_prob[:3]]
+    assert whole["field"]["size"] == len(p) and likely["field"] == {"size": 5, "probability": pytest.approx(p[by_prob[:5]].sum(), abs=1e-4)}
+
+    for out, field_rows in ((whole, by_prob), (likely, by_prob[:5])):
+        w = p[field_rows] / p[field_rows].sum()
+        field_value = (w[:, None] * X[field_rows]).sum(axis=0)
+        contrib = m.contributions(X[field_rows])[:, :-1] * m.temperature["pick"]
+        rel = contrib - (w[:, None] * contrib).sum(axis=0)
+        for k, cand in enumerate(out["candidates"]):
+            for factor in cand["top_factors"]:
+                for feat in factor["features"]:
+                    j = m.features.index(feat["name"])
+                    assert feat["value"] == pytest.approx(float(X[field_rows[k], j]), abs=1e-3)
+                    assert feat["field_mean"] == pytest.approx(float(field_value[j]), abs=2e-3)
+                    assert feat["shap_relative"] == pytest.approx(float(rel[k, j]), abs=2e-4)
+    # the field always holds the candidates that are shown
+    assert explain_next_action(m, X, ids, names, "pick", top_k=8, field_size=5)["field"]["size"] == 8
 
 
 def test_win_model_contributions_are_additive():

@@ -266,9 +266,16 @@ taken (Orianna 7 times in the top 15, Milio 3 times); the actual choice was rank
 
 - `explain.py` sums SHAP values within feature groups and exports the top groups per prediction as JSON with the
   raw feature values underneath. The next-action model uses LightGBM's exact TreeSHAP; the win model uses the
-  closed-form linear SHAP. For candidates, contributions are reported relative to the probability-weighted
-  field, so context shared by all candidates cancels; each feature also carries the field's weighted mean
-  value, which the web page uses to say in words whether a champion is above or below the field on it.
+  closed-form linear SHAP. For candidates, contributions are reported relative to a field: the 12 likeliest
+  candidates weighted by their probabilities, so a factor answers "why this champion rather than the other
+  likely ones" and context shared by all candidates cancels. Each feature also carries the field's weighted
+  value, which the web page uses to say in words whether a champion is above or below the field on it. The
+  field used to be every available champion; it was narrowed for the public site because SHAP for all ~150
+  candidates took 0.9 s per draft state on the host against 0.09 s for 12. Probabilities are unaffected, but
+  factor values moved. On 240 held-out draft states (2,880 candidate rows; the top 12 hold 86% of the
+  probability on average) the largest shift of a factor value was 0.19 log-odds at the median, the three
+  strongest factors of a candidate were a different set in 30% of rows, the single strongest factor changed in
+  19% and flipped sign in 0.2%. Factor numbers from before this change are not comparable with later ones.
 - `predict.py` has both modes from the spec. Replay uses the validated model with features as-of the game; live
   mode uses a refit on all data and accepts earlier games of the series either from the dataset or inline in the
   state file. Both were run end to end.
