@@ -277,9 +277,9 @@ taken (Orianna 7 times in the top 15, Milio 3 times); the actual choice was rank
   card with the full breakdown, a vertical evaluation bar for win probability with the baseline marked, a graph
   of win probability over the draft, and a recap of the model's rating of each action once a draft is complete. Recording a game's winner starts the next game
   of the series with Fearless burns applied. A prediction takes about 0.25 s (three boosters of 1,050 to 1,400 trees
-  each, with exact SHAP). Checked in headless Chrome: a full
-  draft with a missed ban and undos, switching first pick, a second Fearless game, reload, no console errors. It
-  has not been tried in other browsers. There is no automatic feed of live drafts; entry is by hand.
+  each, with exact SHAP). Checked in headless Chrome at 1440, 1280 and
+  1100 px wide and at phone width (390 px): a full draft with a missed ban and undos, switching first pick, a
+  second Fearless game, reload, no console errors. It has not been tried in other browsers or on a real phone. There is no automatic feed of live drafts; entry is by hand.
 
 ## Leakage
 

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draft Predictor (previous look)</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/classic/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand" id="brand">Draft Predictor</div>
+
+  <div class="setup-wrap">
+    <button type="button" class="setup-btn" id="setupBtn" aria-expanded="false" aria-controls="setupPop" title="League, patch and Fearless mode"></button>
+    <div class="setup-pop" id="setupPop" hidden>
+      <label class="field">League
+        <select id="league"></select>
+      </label>
+      <label class="field">Patch
+        <select id="patch"></select>
+      </label>
+      <div class="field">Fearless
+        <div class="seg" id="fearless" role="radiogroup" aria-label="Fearless mode">
+          <button type="button" data-v="hard" title="A champion picked earlier in the series cannot be picked again by either team">Hard</button>
+          <button type="button" data-v="soft" title="A team cannot pick a champion it picked earlier in the series">Soft</button>
+          <button type="button" data-v="none">Off</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="field">First pick
+    <div class="seg fp" id="firstPick" role="radiogroup" aria-label="First pick team">
+      <button type="button" data-v="blue" class="fp-blue"></button>
+      <button type="button" data-v="red" class="fp-red"></button>
+    </div>
+  </div>
+  <button type="button" class="btn quiet" id="swapSides" title="Swap blue and red side (teams and players)">&#8646; Swap sides</button>
+
+  <div class="spacer"></div>
+  <div class="series" id="series" aria-label="Series"></div>
+  <div class="notices" id="notices"></div>
+</header>
+
+<main class="main">
+  <aside class="rail" aria-label="Win probability">
+    <div class="rail-label red-text" id="railRedName">Red</div>
+    <div class="evalbar" id="evalbar" title="">
+      <div class="eval-red"><span id="evalRedPct">–</span></div>
+      <div class="eval-blue" id="evalBlue"><span id="evalBluePct">–</span></div>
+      <div class="eval-mid"></div>
+      <div class="eval-base" id="evalBase"></div>
+    </div>
+    <div class="rail-label blue-text" id="railBlueName">Blue</div>
+  </aside>
+
+  <section class="team team-blue" id="teamBlue" data-side="blue"></section>
+
+  <section class="center">
+    <div class="statusbar" id="statusbar">
+      <div class="status-row">
+        <div class="status" id="status"></div>
+        <div class="status-actions">
+          <button type="button" class="btn" id="missedBtn" title="The acting team did not ban">Missed ban</button>
+          <button type="button" class="btn" id="undoBtn" title="Undo last action (Cmd/Ctrl+Z)">&#8630; Undo</button>
+          <button type="button" class="btn quiet" id="newDraftBtn" title="Clear this game's draft">Clear</button>
+        </div>
+      </div>
+      <div class="timeline" id="timeline" aria-hidden="true"></div>
+    </div>
+    <div class="winner-ask" id="winnerAsk" hidden>
+      <span>Draft complete. Who won this game?</span>
+      <button type="button" class="btn win-blue" id="winBlue"></button>
+      <button type="button" class="btn win-red" id="winRed"></button>
+    </div>
+    <div class="toolbar" id="toolbar">
+      <input type="search" id="search" placeholder="Search champion  ( / )" autocomplete="off" spellcheck="false" aria-label="Search champion">
+      <div class="seg" id="roleFilter" aria-label="Role filter">
+        <button type="button" data-v="all">All</button>
+        <button type="button" data-v="top">Top</button>
+        <button type="button" data-v="jungle">Jgl</button>
+        <button type="button" data-v="mid">Mid</button>
+        <button type="button" data-v="bot">Bot</button>
+        <button type="button" data-v="support">Sup</button>
+      </div>
+      <button type="button" class="btn toggle" id="sortToggle" aria-pressed="false" title="List champions alphabetically instead of by likelihood">A–Z</button>
+    </div>
+    <div class="grid" id="grid">
+      <div class="sec-head" id="likelyHead"><span>Most likely</span><span class="sec-note" id="likelyNote"></span></div>
+      <div class="tiles big" id="likelyBox" role="list"></div>
+      <div class="sec-head" id="restHead"><span>Other options</span><span class="sec-note" id="restNote"></span></div>
+      <div class="tiles small" id="restBox" role="list"></div>
+      <div class="sec-head" id="offHead"><span>Unavailable</span><span class="sec-note" id="offNote"></span></div>
+      <div class="tiles small" id="offBox" role="list"></div>
+      <div class="grid-empty muted" id="gridEmpty" hidden>No champion matches.</div>
+    </div>
+    <div class="recap" id="recap" hidden></div>
+  </section>
+
+  <section class="team team-red" id="teamRed" data-side="red"></section>
+
+  <aside class="side">
+    <div class="card preds">
+      <div class="card-head">
+        <span id="predTitle">Next action</span>
+        <span class="muted small" id="predCount"></span>
+      </div>
+      <div class="pred-error" id="predError" hidden></div>
+      <ol class="pred-list" id="predList"></ol>
+    </div>
+    <div class="card wincard">
+      <div class="card-head">
+        <span>Win probability</span>
+      </div>
+      <div class="caveat-pop" id="caveatPop" hidden></div>
+      <div class="win-nums" id="winNums"></div>
+      <svg class="wingraph" id="winGraph" viewBox="0 0 300 110" preserveAspectRatio="none" aria-label="Win probability over the draft"></svg>
+      <div class="graph-axis"><span>ban 1</span><span>pick 1</span><span>ban 2</span><span>pick 2</span></div>
+      <div class="win-factors" id="winFactors"></div>
+    </div>
+  </aside>
+</main>
+
+<div class="why" id="why" hidden></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script src="/static/classic/app.js"></script>
+</body>
+</html>

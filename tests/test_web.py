@@ -89,3 +89,11 @@ def test_page_and_assets_are_served(client):
     for path in ("/", "/static/app.js", "/static/style.css"):
         text = client.get(path).text
         assert "https://" not in text and "http://" not in text.replace("http://www.w3.org", ""), path
+
+
+def test_previous_look_and_splash_guard(client):
+    old = client.get("/classic")
+    assert old.status_code == 200 and "/static/classic/app.js" in old.text
+    assert client.get("/static/classic/app.js").status_code == 200
+    # only known champion ids are ever fetched from Data Dragon
+    assert client.get("/img/splash/NotAChampion.jpg").status_code == 404

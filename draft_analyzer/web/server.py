@@ -9,6 +9,8 @@ Endpoints
     GET  /api/meta               champions, teams with their latest rosters, leagues, patches, draft order
     POST /api/predict            body: a draft state (same fields as the CLI state file); returns predictions
     GET  /img/champion/<id>.png  champion icon from Data Dragon, cached on disk after the first request
+    GET  /img/splash/<id>.jpg    champion splash art (face-centred crop) from Data Dragon, cached the same way
+    GET  /classic                the previous look of the page, kept for comparison
 
 The server keeps the models and the as-of engine in memory (``predict.LiveSession``), so a
 prediction takes a fraction of a second. It listens on localhost only.
@@ -132,9 +134,30 @@ def champion_icon(name: str) -> FileResponse:
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": "public, max-age=604800"})
 
 
+@app.get("/img/splash/{name}.jpg")
+def champion_splash(name: str) -> FileResponse:
+    """Splash art for the pick slots. Not versioned by Data Dragon, so it is cached by champion id alone."""
+    if name not in {c["id"] for c in meta()["champions"]}:
+        raise HTTPException(status_code=404, detail="unknown champion")
+    path = config.DDRAGON_DIR / "img" / "splash" / f"{name}.jpg"
+    if not path.exists():  # cached forever once fetched
+        resp = requests.get(f"{ddragon.BASE_URL}/cdn/img/champion/centered/{name}_0.jpg",
+                            headers={"User-Agent": ddragon.USER_AGENT}, timeout=30)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=502, detail="Data Dragon did not return the splash art")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(resp.content)
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=604800"})
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/classic")
+def classic() -> FileResponse:
+    return FileResponse(STATIC / "classic" / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 class _RevalidatedStatic(StaticFiles):

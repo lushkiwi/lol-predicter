@@ -9,15 +9,17 @@ const STORE_KEY = 'draft-predictor.state.v1';
 const SIDES = ['blue', 'red'];
 const ROLE_SHORT = { top: 'Top', jungle: 'Jgl', mid: 'Mid', bot: 'Bot', support: 'Sup' };
 const ROLE_MIN = 0.15; // role filter: champion counts for a role if played there this often
-const GROUP_SHORT = {
-  'champion meta strength': 'meta',
-  'player comfort': 'player',
-  'role fit': 'role',
-  'synergy/counter': 'synergy',
-  'team tendency': 'team',
-  'draft context': 'draft',
-  'series context': 'series',
-  'team strength': 'strength',
+// a factor group in words: [when it counts for the champion, when it counts against]
+const REASON = {
+  'champion meta strength': ['high priority this patch', 'low priority this patch'],
+  'player comfort': ['player comfort', 'low player comfort'],
+  'role fit': ['fits an open role', 'poor role fit'],
+  'synergy/counter': ['often drafted with these', 'rarely drafted with these'],
+  'team tendency': ['these teams favour it', 'not these teams’ habit'],
+  'draft context': ['usual at this point', 'unusual at this point'],
+  'series context': ['series so far favours it', 'series so far counts against'],
+  'team strength': ['team strength', 'team strength counts against'],
+  'champion attributes': ['champion type fits', 'champion type fits less'],
 };
 const GROUP_LABEL = {
   'champion meta strength': 'Meta strength',
@@ -28,6 +30,7 @@ const GROUP_LABEL = {
   'draft context': 'Draft context',
   'series context': 'Series context',
   'team strength': 'Team strength',
+  'champion attributes': 'Champion type',
 };
 const groupLabel = (g) => GROUP_LABEL[g] || g;
 
@@ -41,6 +44,9 @@ let reqSeq = 0;             // id of the latest request sent
 let predictTimer = 0;
 let apiError = '';
 let tiles = new Map();      // name -> tile element
+let booted = false;         // false during the first render: nothing animates in on page load
+let movedFor = { grid: '', preds: '' }; // the draft position each list last animated for
+const REDUCED_MOTION = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 const $ = (id) => document.getElementById(id);
 const other = (side) => (side === 'blue' ? 'red' : 'blue');
@@ -60,6 +66,36 @@ function icon(name, cls) {
   img.loading = 'lazy';
   if (c) img.src = `/img/champion/${encodeURIComponent(c.id)}.png`;
   return img;
+}
+// splash art for a pick slot; falls back to the square icon if the art cannot be loaded
+function splash(name, cls) {
+  const img = el('img', cls);
+  const c = CHAMP.get(name);
+  img.alt = '';
+  img.draggable = false;
+  if (c) {
+    img.onerror = () => { img.onerror = null; img.src = `/img/champion/${encodeURIComponent(c.id)}.png`; };
+    img.src = `/img/splash/${encodeURIComponent(c.id)}.jpg`;
+  }
+  return img;
+}
+// FLIP: remember where keyed elements are, change the DOM, then slide each one from its old place
+function rectsOf(nodes) {
+  const m = new Map();
+  for (const n of nodes) if (!n.hidden) m.set(n.dataset.name, n.getBoundingClientRect());
+  return m;
+}
+function slideFrom(before, nodes) {
+  if (REDUCED_MOTION || !before || !before.size) return;
+  for (const n of nodes) {
+    if (n.hidden || !n.animate) continue;
+    const a = before.get(n.dataset.name);
+    if (!a) { n.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, easing: 'ease-out' }); continue; }
+    const b = n.getBoundingClientRect();
+    const dx = a.left - b.left, dy = a.top - b.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+    n.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 320, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+  }
 }
 function pct(p, digits = 1) {
   if (p == null || isNaN(p)) return '–';
@@ -457,12 +493,11 @@ function buildTeamColumn(side) {
   const col = side === 'blue' ? $('teamBlue') : $('teamRed');
   col.textContent = '';
 
+  const top = el('div', 'team-top');
+  top.appendChild(el('span', 'team-rule'));
   const head = el('div', 'team-head');
-  head.appendChild(el('div', 'side-tag', side === 'blue' ? 'Blue side' : 'Red side'));
-  const fpTag = el('div', 'fp-tag', 'First pick');
+  const fpTag = el('div', 'fp-tag', 'first pick');
   fpTag.dataset.role = 'fp';
-  head.appendChild(fpTag);
-  col.appendChild(head);
 
   const combo = el('div', 'combo');
   const input = el('input', 'team-input');
@@ -475,12 +510,13 @@ function buildTeamColumn(side) {
   list.hidden = true;
   list.setAttribute('role', 'listbox');
   combo.append(input, list);
-  col.appendChild(combo);
+  head.append(combo, fpTag);
   bindCombo(side, input, list);
 
   const score = el('div', 'team-score');
   score.dataset.role = 'score';
-  col.appendChild(score);
+  top.append(head, score);
+  col.appendChild(top);
 
   const players = el('div', 'players');
   META.roles.forEach((role, i) => {
@@ -503,8 +539,8 @@ function buildTeamColumn(side) {
   });
   col.appendChild(players);
 
-  col.appendChild(el('div', 'sub', 'Bans'));
   const bans = el('div', 'bans');
+  bans.appendChild(el('span', 'bans-label', 'Bans'));
   for (let k = 0; k < 5; k++) {
     if (k === 3) bans.appendChild(el('div', 'ban-gap'));
     const s = el('div', 'ban slot');
@@ -513,7 +549,6 @@ function buildTeamColumn(side) {
   }
   col.appendChild(bans);
 
-  col.appendChild(el('div', 'sub', 'Picks'));
   const picks = el('div', 'picks');
   for (let k = 0; k < 5; k++) {
     const s = el('div', 'pick slot');
@@ -611,20 +646,25 @@ function renderTeam(side) {
   const sc = col.querySelector('[data-role=score]');
   sc.textContent = S.previous.length ? `${wins} win${wins === 1 ? '' : 's'} in series` : '';
 
-  // clear slots
-  col.querySelectorAll('.slot').forEach((s) => {
-    s.className = s.className.split(' ').filter((c) => c === 'ban' || c === 'pick' || c === 'slot').join(' ');
-    s.textContent = '';
-    s.removeAttribute('title');
-  });
   for (let i = 0; i < ORDER.length; i++) {
     const { side: sd, type, k } = slotOf(i);
     if (sd !== side) continue;
     const s = col.querySelector(`[data-slot=${type}${k}]`);
-    if (i < S.actions.length) fillSlot(s, i, type);
-    else if (i === S.actions.length) {
+    const info = S.actionInfo[i];
+    const key = i < S.actions.length ? `filled|${i}|${S.actions[i]}|${info ? info.rank + '/' + info.p : ''}`
+      : i === S.actions.length ? 'next' : 'empty';
+    if (s.dataset.key === key) continue;
+    const wasFilled = (s.dataset.key || '').startsWith('filled');
+    s.dataset.key = key;
+    s.className = `${type} slot`;
+    s.textContent = '';
+    s.removeAttribute('title');
+    if (i < S.actions.length) {
+      fillSlot(s, i, type);
+      if (booted && !wasFilled) s.classList.add('just');
+    } else if (i === S.actions.length) {
       s.classList.add('next');
-      s.appendChild(el('span', 'slot-next', type === 'ban' ? 'Banning…' : 'Picking…'));
+      s.appendChild(el('span', 'slot-next', type === 'ban' ? 'Banning' : 'Picking'));
     } else {
       s.classList.add('empty');
     }
@@ -635,7 +675,7 @@ function renderTeam(side) {
   bx.textContent = '';
   const burned = burnedFor(side);
   if (S.fearless !== 'none' && burned.length) {
-    bx.appendChild(el('div', 'sub', `Fearless: unavailable (${burned.length})`));
+    bx.appendChild(el('div', null, `Used earlier in the series (${burned.length})`));
     const wrap = el('div', 'burned-icons');
     burned.forEach((n) => { const im = icon(n, 'bicon'); im.title = `${n}: used in an earlier game`; wrap.appendChild(im); });
     bx.appendChild(wrap);
@@ -652,7 +692,7 @@ function fillSlot(s, i, type) {
     s.title = `Action ${i + 1}: missed ban`;
     return;
   }
-  s.appendChild(icon(name, 'slot-icon'));
+  s.appendChild(type === 'pick' ? splash(name, 'slot-art') : icon(name, 'slot-icon'));
   const modelTxt = info ? `model gave it ${probLabel(info.p)} (rank ${info.rank})` : '';
   s.title = `Action ${i + 1}: ${name}${modelTxt ? ' · ' + modelTxt : ''}`;
   if (type === 'pick') {
@@ -678,10 +718,9 @@ function renderStatus() {
   $('newDraftBtn').disabled = !S.actions.length;
   const i = nextIndex();
   $('missedBtn').hidden = done || ORDER[i].type !== 'ban';
-  const gameNo = S.previous.length + 1;
   renderTimeline();
   if (done) {
-    st.appendChild(el('span', 'status-main', `Game ${gameNo}: draft complete`));
+    st.appendChild(el('span', 'status-main', 'Draft complete'));
     $('winBlue').textContent = teamName('blue') + ' won';
     $('winRed').textContent = teamName('red') + ' won';
     document.body.dataset.acting = '';
@@ -838,9 +877,13 @@ function renderGrid() {
   const reasonOrder = { Banned: 0, Picked: 0, Fearless: 1 };
   const off = rows.filter((r) => !r.st.available).sort((a, b) =>
     ((reasonOrder[a.st.reason] ?? 2) - (reasonOrder[b.st.reason] ?? 2)) || a.name.localeCompare(b.name));
-  placeTiles($('likelyBox'), avail.slice(0, nLikely).map((r) => r.t));
+  const likely = avail.slice(0, nLikely).map((r) => r.t);
+  const moved = movedFor.grid !== String(nextIndex());
+  const before = moved && booted && movedFor.grid !== '' ? rectsOf($('likelyBox').children) : null;
+  placeTiles($('likelyBox'), likely);
   placeTiles($('restBox'), avail.slice(nLikely).map((r) => r.t));
   placeTiles($('offBox'), off.map((r) => r.t));
+  if (moved) { movedFor.grid = String(nextIndex()); slideFrom(before, likely); }
   const covered = avail.slice(0, nLikely).reduce((a, r) => a + r.st.p, 0);
   $('likelyNote').textContent = `${nLikely} champions cover ${Math.round(covered * 100)}% of the probability`;
   updateGridHeads();
@@ -907,8 +950,20 @@ function renderRecap() {
 
 /* ---------- predictions panel ---------- */
 
+// what speaks for the champion first, then what speaks against it; strongest first within each
+function reasons(c) {
+  const fs = sortedFactors(c);
+  const ordered = fs.filter((f) => f.shap_relative >= 0).concat(fs.filter((f) => f.shap_relative < 0));
+  return ordered.slice(0, 3).map((f, k) => {
+    const pos = f.shap_relative >= 0;
+    const words = (REASON[f.group] || [f.group, 'less ' + f.group])[pos ? 0 : 1];
+    return el('span', 'reason ' + (pos ? 'for' : 'against'), k ? words : words[0].toUpperCase() + words.slice(1));
+  });
+}
+
 function renderPreds() {
   const list = $('predList');
+  const before = booted ? rectsOf(list.querySelectorAll('.pred')) : null;
   list.textContent = '';
   const errBox = $('predError');
   errBox.hidden = !apiError;
@@ -945,16 +1000,12 @@ function renderPreds() {
     bar.appendChild(fill);
     top.append(el('span', 'pred-name', c.champion), bar, el('span', 'pred-pct', pct(c.probability)));
     const why = el('div', 'pred-why');
-    sortedFactors(c).slice(0, 3).forEach((f) => {
-      const item = el('span', 'factor');
-      item.append(document.createTextNode((GROUP_SHORT[f.group] || f.group) + ' '),
-        el('b', f.shap_relative >= 0 ? 'for' : 'against', signed(f.shap_relative)));
-      why.appendChild(item);
-    });
+    why.append(...reasons(c));
     body.append(top, why);
     li.appendChild(body);
     list.appendChild(li);
   }
+  if (fresh && movedFor.preds !== String(i)) { movedFor.preds = String(i); slideFrom(before, list.children); }
 }
 function sortedFactors(c) {
   return (c.top_factors || []).slice().sort((a, b) => Math.abs(b.shap_relative) - Math.abs(a.shap_relative));
@@ -981,7 +1032,7 @@ function showWhy(anchor) {
     el('div', 'muted small', `Rank ${c.rank} of ${na.n_candidates} for ${teamName(side)}'s ${na.action_type}`));
   head.append(icon(c.champion, 'why-icon'), ttl, el('div', 'why-pct', pct(c.probability)));
   card.appendChild(head);
-  card.appendChild(el('div', 'why-sub', 'Why, compared with the average available champion'));
+  card.appendChild(el('div', 'why-sub', 'Compared with the average available champion'));
   const factors = sortedFactors(c);
   const scale = Math.max(0.5, ...factors.map((f) => Math.abs(f.shap_relative)));
   for (const f of factors) {
@@ -1007,9 +1058,10 @@ function showWhy(anchor) {
   const r = anchor.getBoundingClientRect();
   const panel = anchor.closest('.card').getBoundingClientRect();
   const w = card.offsetWidth, h = card.offsetHeight;
-  let left = panel.left - w - 10;
-  if (left < 8) left = Math.min(window.innerWidth - w - 8, panel.right + 10);
-  const top = Math.max(8, Math.min(r.top - 10, window.innerHeight - h - 8));
+  let left = panel.left - w - 14;
+  if (left < 8) left = Math.max(8, Math.min(window.innerWidth - w - 8, panel.right + 10));
+  let top = Math.max(8, Math.min(r.top - 10, window.innerHeight - h - 8));
+  if (left + w > panel.left && r.bottom + h + 8 < window.innerHeight) top = r.bottom + 6; // no room beside the list: go below the row
   card.style.left = Math.round(left) + 'px';
   card.style.top = Math.round(top) + 'px';
 }
@@ -1035,12 +1087,12 @@ function renderWin() {
     return;
   }
   const pb = w.p_blue_win;
-  $('evalBlue').style.height = (pb * 100).toFixed(2) + '%';
+  $('evalbar').style.setProperty('--pb', (pb * 100).toFixed(2));
+  $('evalbar').style.setProperty('--base', (w.p_blue_win_baseline * 100).toFixed(2));
   $('evalBluePct').textContent = Math.round(pb * 100) + '%';
   $('evalRedPct').textContent = Math.round((1 - pb) * 100) + '%';
-  $('evalBase').style.bottom = (w.p_blue_win_baseline * 100).toFixed(2) + '%';
   $('evalBase').title = `Baseline (team strength + side + first pick): ${blueName} ${pct(w.p_blue_win_baseline)}`;
-  $('evalbar').title = `${blueName} ${pct(pb)} · ${redName} ${pct(1 - pb)}\nWhite tick = baseline ${pct(w.p_blue_win_baseline)} (team strength, side, first pick)\n\n${META.win_note}`;
+  $('evalbar').title = `${blueName} ${pct(pb)} · ${redName} ${pct(1 - pb)}\nLight tick = baseline ${pct(w.p_blue_win_baseline)} (team strength, side, first pick)\n\n${META.win_note}`;
 
   const row = el('div', 'win-row');
   const bt = el('div', 'win-team blue');
@@ -1301,6 +1353,7 @@ async function boot() {
   buildGrid();
   bindEvents();
   render();
+  booted = true;
   schedulePredict();
 }
 

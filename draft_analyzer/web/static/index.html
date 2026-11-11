@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0c0d0f">
 <title>Draft Predictor</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="/static/style.css">
@@ -45,14 +47,13 @@
 
 <main class="main">
   <aside class="rail" aria-label="Win probability">
-    <div class="rail-label red-text" id="railRedName">Red</div>
+    <div class="rail-end rail-red"><span class="rail-name" id="railRedName">Red</span><b id="evalRedPct">–</b></div>
     <div class="evalbar" id="evalbar" title="">
-      <div class="eval-red"><span id="evalRedPct">–</span></div>
-      <div class="eval-blue" id="evalBlue"><span id="evalBluePct">–</span></div>
+      <div class="eval-blue" id="evalBlue"></div>
       <div class="eval-mid"></div>
       <div class="eval-base" id="evalBase"></div>
     </div>
-    <div class="rail-label blue-text" id="railBlueName">Blue</div>
+    <div class="rail-end rail-blue"><b id="evalBluePct">–</b><span class="rail-name" id="railBlueName">Blue</span></div>
   </aside>
 
   <section class="team team-blue" id="teamBlue" data-side="blue"></section>
@@ -70,7 +71,7 @@
       <div class="timeline" id="timeline" aria-hidden="true"></div>
     </div>
     <div class="winner-ask" id="winnerAsk" hidden>
-      <span>Draft complete. Who won this game?</span>
+      <span>Who won this game?</span>
       <button type="button" class="btn win-blue" id="winBlue"></button>
       <button type="button" class="btn win-red" id="winRed"></button>
     </div>
@@ -116,7 +117,7 @@
       <div class="caveat-pop" id="caveatPop" hidden></div>
       <div class="win-nums" id="winNums"></div>
       <svg class="wingraph" id="winGraph" viewBox="0 0 300 110" preserveAspectRatio="none" aria-label="Win probability over the draft"></svg>
-      <div class="graph-axis"><span>ban 1</span><span>pick 1</span><span>ban 2</span><span>pick 2</span></div>
+      <div class="graph-axis"><span>Bans</span><span>Picks</span><span>Bans</span><span>Picks</span></div>
       <div class="win-factors" id="winFactors"></div>
     </div>
   </aside>
