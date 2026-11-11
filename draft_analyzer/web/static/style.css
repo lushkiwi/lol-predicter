@@ -5,6 +5,29 @@
  * are separated by space and hairlines; only things that float (popovers, the hover card) get a
  * surface of their own.
  */
+/* Sofia Sans and Sofia Sans Condensed (SIL Open Font License, see fonts/OFL.txt), served from this site:
+ * variable-weight files, the extended-Latin ones are only fetched when a name needs them. */
+@font-face {
+  font-family: "Sofia Sans"; font-style: normal; font-weight: 400 600; font-display: swap;
+  src: url("/static/fonts/sofia-sans-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Sofia Sans"; font-style: normal; font-weight: 400 600; font-display: swap;
+  src: url("/static/fonts/sofia-sans-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Sofia Sans Condensed"; font-style: normal; font-weight: 500 600; font-display: swap;
+  src: url("/static/fonts/sofia-sans-condensed-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Sofia Sans Condensed"; font-style: normal; font-weight: 500 600; font-display: swap;
+  src: url("/static/fonts/sofia-sans-condensed-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
   --bg: #0c0d0f;
   --raise: #16181b;        /* popovers, hovered rows, empty art */
@@ -19,8 +42,8 @@
   --red: #f25a5f;
   --gold: 200, 170, 110;   /* likelihood, used as rgb() components */
   --error: #ff8085;
-  --display: "Barlow Condensed", "Avenir Next Condensed", "DIN Condensed", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif;
-  --body: "Barlow", "Avenir Next", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --display: "Sofia Sans Condensed", "Avenir Next Condensed", "DIN Condensed", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --body: "Sofia Sans", "Avenir Next", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --team-w: 236px;
   --side-w: 344px;

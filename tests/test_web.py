@@ -89,6 +89,11 @@ def test_page_and_assets_are_served(client):
     for path in ("/", "/static/app.js", "/static/style.css"):
         text = client.get(path).text
         assert "https://" not in text and "http://" not in text.replace("http://www.w3.org", ""), path
+    # the typefaces the stylesheet names are served from here, with their licence
+    import re
+    fonts = set(re.findall(r'url\("(/static/fonts/[^"]+)"\)', client.get("/static/style.css").text))
+    assert len(fonts) == 4 and all(client.get(f).status_code == 200 for f in fonts)
+    assert "SIL Open Font License" in client.get("/static/fonts/OFL.txt").text
 
 
 def test_splash_art_only_for_known_champions(client):
