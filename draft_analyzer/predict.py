@@ -15,6 +15,7 @@ factors. ``--json`` prints the full structured explanation instead (input for an
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import pickle
 import sys
@@ -199,11 +200,15 @@ class LiveSession:
     """Models, name resolver and engine kept in memory, to answer many live states quickly
     (the CLI makes one call; the web UI one per click).
 
-    The engine is restored from its pickle once per series context (everything in the state
-    except ``actions``), because earlier games given in ``previous_games`` are applied to it.
+    A series context is everything in the state except ``actions``. A state without
+    ``previous_games`` applies no game to the engine, so all such contexts read one shared
+    engine. A state with ``previous_games`` gets its own copy, restored from the pickle,
+    because those games are applied to it.
+
+    Not thread-safe: one prediction at a time (the web server holds a lock around ``predict``).
     """
 
-    def __init__(self, cache_size: int = 4):
+    def __init__(self, cache_size: int = 4, shared_cache_size: int = 64):
         from collections import OrderedDict
 
         from .ingest.oracles_elixir import load_history
@@ -212,22 +217,47 @@ class LiveSession:
         self.models = load_models(live=True)
         self.games = pd.read_parquet(config.GAMES_PATH)
         self.resolver = NameResolver(self.games, load_history())
-        self._cache: OrderedDict = OrderedDict()
+        self._cache: OrderedDict = OrderedDict()   # contexts with an engine copy of their own
         self._cache_size = cache_size
+        self._shared: OrderedDict = OrderedDict()  # contexts on the shared engine: only the pre-game facts
+        self._shared_size = shared_cache_size
+        self._base: Engine | None = None
+        self._base_t = 0.0
 
     def new_engine(self) -> Engine:
         engine: Engine = pickle.loads(self._engine_bytes)
         engine.flush()
         return engine
 
+    def base_engine(self) -> Engine:
+        """The shared engine, as it was when loaded. Callers may read it and call ``begin_game``
+        (which only moves its clock, put back here); they must never submit a game to it."""
+        if self._base is None:
+            self._base = self.new_engine()
+            self._base_t = self._base.t_now
+        self._base.t_now = self._base_t
+        return self._base
+
     def _series_context(self, state: dict) -> dict:
         key = json.dumps({k: v for k, v in state.items() if k != "actions"}, sort_keys=True, default=str)
-        ctx = self._cache.get(key)
+        shared = not state.get("previous_games")
+        cache = self._shared if shared else self._cache
+        ctx = cache.get(key)
         if ctx is not None:
-            self._cache.move_to_end(key)
+            cache.move_to_end(key)
             self.resolver.warnings = list(ctx["warnings"])
+            if shared:
+                self.base_engine()  # puts the clock back, as a context's own engine would have it
             return ctx
-        engine, resolver = self.new_engine(), self.resolver
+        if shared:
+            engine = self.base_engine()
+        else:
+            # A discarded engine copy is only freed by the cycle collector (its blocks point back
+            # at it), which runs too rarely for objects this large: without this, copies dropped
+            # from the cache or abandoned by a StateError pile up to well over 1 GB.
+            gc.collect()
+            engine = self.new_engine()
+        resolver = self.resolver
         resolver.warnings = []
         t_now = to_days(state["datetime"]) if state.get("datetime") else to_days(datetime.now(timezone.utc).replace(tzinfo=None))
         t_now = max(t_now, engine.t_now)
@@ -268,9 +298,9 @@ class LiveSession:
         n = int(state.get("game_in_series", n_known + len(prev) + 1))
         pre = _pre_from_state(engine, resolver, state, series_id, n, t_now, picked, wins)
         ctx = {"engine": engine, "pre": pre, "warnings": list(resolver.warnings)}
-        self._cache[key] = ctx
-        while len(self._cache) > self._cache_size:
-            self._cache.popitem(last=False)
+        cache[key] = ctx
+        while len(cache) > (self._shared_size if shared else self._cache_size):
+            cache.popitem(last=False)
         return ctx
 
     def predict(self, state: dict, top_k: int = 10, all_probs: bool = False) -> dict:

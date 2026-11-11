@@ -112,6 +112,37 @@ def test_answers_are_remembered_and_bodies_are_bounded(client, state):
     assert client.get("/health").json() == {"status": "ok"}
 
 
+def test_first_games_share_one_engine_and_keep_their_answers(state, monkeypatch):
+    """States without earlier games all read one engine (a copy per matchup cost over 1 GB on the
+    public site). Nothing predicted in between may change what such a state is answered."""
+    from datetime import datetime as real_datetime
+
+    import draft_analyzer.predict as P
+
+    class Frozen(real_datetime):  # the time of asking enters the features, so hold it still
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 11, 11, 22, tzinfo=tz)
+
+    monkeypatch.setattr(P, "datetime", Frozen)
+    first = {**state, "previous_games": [], "actions": ["Azir", "Vi"]}
+    expected = P.LiveSession().predict(dict(first), top_k=5, all_probs=True)  # a session that has seen nothing else
+
+    sess = P.LiveSession()
+    base = sess.base_engine()
+    applied = base.n_applied
+    swapped = {**first, "blue_team": first["red_team"], "red_team": first["blue_team"],
+               "blue_players": first["red_players"], "red_players": first["blue_players"]}
+    sess.predict(dict(swapped), top_k=5)                                          # another matchup, same engine
+    sess.predict({**state, "actions": ["Azir"]}, top_k=5)                         # earlier games: an engine of its own
+    sess.predict({**first, "datetime": "2027-03-01T00:00:00"}, top_k=5)           # a later clock must not stick
+    assert [c["engine"] is base for c in sess._shared.values()] == [True] * 2
+    assert [c["engine"] is base for c in sess._cache.values()] == [False]
+    assert base.n_applied == applied                                              # no game was applied to it
+    sess._shared.clear()                                                          # rebuild the context as well
+    assert sess.predict(dict(first), top_k=5, all_probs=True) == expected
+
+
 def test_rate_limiter_gives_each_address_its_own_budget():
     from draft_analyzer.web.server import RateLimiter
 
