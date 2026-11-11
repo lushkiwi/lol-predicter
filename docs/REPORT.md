@@ -60,7 +60,7 @@ Made after the first version of this report, at the user's request. All numbers 
   instead of in cards; colour has three roles (blue and red for the teams, gold for likelihood); the page serves
   its own typefaces (Sofia Sans, Sofia Sans Condensed, chosen from the six pairings in `docs/font-options.html`,
   a standalone page that loads the candidates from Google Fonts); each candidate's reasons are given in words
-  that state a fact and name the team, with the numbers in a hover card; a phone layout below 860 px, which puts
+  that state a fact and name the team, with the numbers in a hover card (on a touch screen, behind an "i" button on each row); a phone layout below 860 px, which puts
   the likely choices straight after whose turn it is and the full champion grid last.
 - **Explanations now compare a candidate with the 12 likeliest champions**, not with every available one, which
   made a prediction about five times faster on the host. Probabilities are unchanged; factor values are not

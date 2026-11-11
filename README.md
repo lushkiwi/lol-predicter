@@ -70,7 +70,7 @@ other league in the files) and `DRAFT_HISTORY_BLOCKS`.
 Pick the two teams (rosters fill in from their latest game), who has first pick, and click each ban and pick as
 the real draft happens. After every click the page splits the champions into the likely ones (1% or more, shown
 large with their probability), the other available ones and the unavailable ones; lists the top 12 candidates
-with their three main factors (hover a row for the full breakdown down to single features); and moves a
+with their three main factors (hover a row for the full breakdown down to single features; on a touch screen each row has an "i" button that opens it); and moves a
 chess-style evaluation bar for win probability, with a graph over the draft. League, patch and Fearless mode
 are behind the summary at the top left. Picks fill the team columns as splash art, and each candidate's main
 reasons are given in words that name the team and the fact behind them ("T1 picked it lately", "pairs with

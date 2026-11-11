@@ -504,9 +504,26 @@ body.loading .status-main::after { content: " ·"; color: var(--muted); animatio
 .pred {
   position: relative;
   display: grid; grid-template-columns: 16px 34px minmax(0, 1fr); gap: 9px; align-items: center;
-  padding: 3px 8px; border-radius: 3px; cursor: pointer;
+  --pad-y: 3px;
+  padding: var(--pad-y) 8px; border-radius: 3px; cursor: pointer;
 }
 .pred:hover, .pred:focus-visible { background: var(--raise); }
+/* A finger cannot hover, so on a touch screen each row ends in a button that opens the breakdown.
+ * It fills the row's height and reaches its right edge, so a near miss does not enter the champion. */
+.pred-info { display: none; }
+@media (hover: none) {
+  .pred { grid-template-columns: 16px 34px minmax(0, 1fr) 30px; }
+  .pred-info {
+    display: grid; place-items: center; align-self: stretch;
+    margin: calc(-1 * var(--pad-y)) -8px calc(-1 * var(--pad-y)) -6px; padding: 0;
+    background: transparent; border: 0; color: var(--soft); cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .pred-info span {
+    display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+    border: 1px solid var(--line-2); font: italic 600 13px/1 Georgia, 'Times New Roman', serif;
+  }
+  .pred-info[aria-expanded=true] span { background: var(--text); border-color: var(--text); color: var(--bg); }
+}
 .pred-rank { font-size: 12px; color: var(--faint); text-align: right; }
 .pred-icon { width: 32px; height: 32px; border-radius: 2px; }
 .pred-top { display: flex; align-items: center; gap: 9px; line-height: 17px; }
@@ -543,6 +560,18 @@ b.against { color: var(--muted); }
 .why-words { margin-top: 2px; font-size: 12px; color: var(--soft); }
 .why:not([hidden]) { animation: cardIn 0.16s var(--ease) both; }
 @keyframes cardIn { from { opacity: 0; transform: translateX(6px); } to { opacity: 1; transform: none; } }
+/* opened from a row's "i" button on a touch screen: a sheet along the bottom that scrolls and can be closed */
+.why.sheet {
+  left: 8px; right: 8px; top: auto; bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  width: auto; max-width: 480px; margin: 0 auto;
+  max-height: 70vh; max-height: 70dvh; overflow-y: auto; overscroll-behavior: contain; pointer-events: auto;
+}
+.why.sheet:not([hidden]) { animation-name: sheetIn; }
+@keyframes sheetIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.why-close {
+  flex: none; width: 36px; height: 36px; margin: -6px -8px -6px 0; padding: 0;
+  background: transparent; border: 0; color: var(--muted); font-size: 24px; line-height: 1; cursor: pointer;
+}
 .why-track { position: relative; height: 6px; }
 .why-track::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--line-2); }
 .why-track i { position: absolute; top: 0; bottom: 0; }
@@ -709,7 +738,7 @@ b.against { color: var(--muted); }
   .sec-head:first-child { margin-top: 0; }
   .preds { flex: none; }
   .pred-list { overflow: visible; }
-  .pred { padding: 7px 8px; }
+  .pred { --pad-y: 7px; }
   .recap-cols { grid-template-columns: 1fr; }
 }
 

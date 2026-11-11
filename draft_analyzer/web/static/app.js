@@ -1135,6 +1135,13 @@ function renderPreds() {
     why.append(...reasons(c, na.action_type, side));
     body.append(top, why);
     li.appendChild(body);
+    // shown on touch screens only (see style.css): a finger cannot hover, so this opens the same card
+    const info = el('button', 'pred-info');
+    info.type = 'button';
+    info.setAttribute('aria-label', `Why ${c.champion}? Show the full breakdown.`);
+    info.setAttribute('aria-expanded', 'false');
+    info.appendChild(el('span', null, 'i'));
+    li.appendChild(info);
     list.appendChild(li);
   }
   if (fresh && movedFor.preds !== String(i)) {
@@ -1152,7 +1159,8 @@ function sortedFactors(c) {
   return (c.top_factors || []).slice().sort((a, b) => Math.abs(b.shap_relative) - Math.abs(a.shap_relative));
 }
 
-/* ---------- "why" card: the full factor breakdown of one candidate, shown on hover or focus ---------- */
+/* ---------- "why" card: the full factor breakdown of one candidate. A mouse hover or keyboard focus shows it
+   beside the row; on a touch screen the row's "i" button opens it as a sheet along the bottom. ---------- */
 
 function candidate(name) {
   const na = R && R.next_action;
@@ -1160,12 +1168,14 @@ function candidate(name) {
   return na.candidates.find((c) => c.champion === name) || null;
 }
 
-function showWhy(anchor) {
+function showWhy(anchor, sheet = false) {
   const card = $('why');
   const c = candidate(anchor.dataset.name);
   if (!c) { hideWhy(); return; }
-  if (!card.hidden && card.dataset.name === c.champion) return;
+  if (!card.hidden && card.dataset.name === c.champion && card.classList.contains('sheet') === sheet) return;
+  document.querySelectorAll('.pred-info[aria-expanded=true]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
   card.dataset.name = c.champion;
+  card.classList.toggle('sheet', sheet);
   const na = R.next_action;
   const side = sideOf(nextIndex());
   card.textContent = '';
@@ -1174,6 +1184,12 @@ function showWhy(anchor) {
   ttl.append(el('div', 'why-name', c.champion),
     el('div', 'muted small', `Rank ${c.rank} of ${na.n_candidates} for ${teamName(side)}'s ${na.action_type}`));
   head.append(icon(c.champion, 'why-icon'), ttl, el('div', 'why-pct', pct(c.probability)));
+  if (sheet) {
+    const x = el('button', 'why-close', '×');
+    x.type = 'button';
+    x.setAttribute('aria-label', 'Close');
+    head.appendChild(x);
+  }
   card.appendChild(head);
   card.appendChild(el('div', 'why-sub', 'Compared with the other likely choices'));
   const factors = sortedFactors(c);
@@ -1196,9 +1212,16 @@ function showWhy(anchor) {
     });
     card.appendChild(feats);
   }
-  card.appendChild(el('div', 'why-foot muted', 'Numbers are log-odds: +0.7 roughly doubles the odds, −0.7 halves them. Click the row to enter this champion.'));
+  card.appendChild(el('div', 'why-foot muted', 'Numbers are log-odds: +0.7 roughly doubles the odds, −0.7 halves them.'
+    + (sheet ? '' : ' Click the row to enter this champion.')));
 
   card.hidden = false;
+  if (sheet) {  // the stylesheet places a sheet
+    card.style.left = card.style.top = '';
+    card.scrollTop = 0;
+    anchor.querySelector('.pred-info').setAttribute('aria-expanded', 'true');
+    return;
+  }
   const r = anchor.getBoundingClientRect();
   const panel = anchor.closest('.card').getBoundingClientRect();
   const w = card.offsetWidth, h = card.offsetHeight;
@@ -1209,7 +1232,11 @@ function showWhy(anchor) {
   card.style.left = Math.round(left) + 'px';
   card.style.top = Math.round(top) + 'px';
 }
-function hideWhy() { $('why').hidden = true; $('why').dataset.name = ''; }
+function hideWhy() {
+  $('why').hidden = true;
+  $('why').dataset.name = '';
+  document.querySelectorAll('.pred-info[aria-expanded=true]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+}
 
 function fmtNum(v) {
   if (typeof v !== 'number') return String(v);
@@ -1426,20 +1453,53 @@ function bindEvents() {
     }
   });
 
+  const why = $('why');
+  const sheetOpen = () => !why.hidden && why.classList.contains('sheet');
   $('predList').addEventListener('click', (e) => {
     const li = e.target.closest('.pred');
-    if (li) applyAction(li.dataset.name);
+    if (!li) return;
+    if (e.target.closest('.pred-info')) {  // the "i" button opens and closes the card; it never enters the champion
+      if (sheetOpen() && why.dataset.name === li.dataset.name) hideWhy(); else showWhy(li, true);
+      return;
+    }
+    applyAction(li.dataset.name);
   });
   $('predList').addEventListener('keydown', (e) => {
+    if (e.target.closest('.pred-info')) return;
     const li = e.target.closest('.pred');
     if (li && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); applyAction(li.dataset.name); }
   });
+  why.addEventListener('click', (e) => { if (e.target.closest('.why-close')) hideWhy(); });
+  // A sheet closes on a touch anywhere outside it, and that touch does nothing else: most of what shows
+  // around a sheet is rows, and closing it must not enter a champion. pointerdown, because an iPhone
+  // sends no click for a tap on something that is not a control.
+  let closingTouch = false;
+  document.addEventListener('pointerdown', (e) => {
+    closingTouch = sheetOpen() && !why.contains(e.target) && !e.target.closest('.pred-info');
+    if (closingTouch) hideWhy();
+  });
+  document.addEventListener('click', (e) => {
+    if (!closingTouch) return;
+    closingTouch = false;
+    e.stopPropagation();
+    e.preventDefault();
+  }, true);
 
   const preds = $('predList');
-  preds.addEventListener('mouseover', (e) => { const li = e.target.closest('.pred'); if (li) showWhy(li); });
-  preds.addEventListener('mouseleave', hideWhy);
-  preds.addEventListener('focusin', (e) => { const li = e.target.closest('.pred'); if (li) showWhy(li); });
-  preds.addEventListener('focusout', hideWhy);
+  // The card is for a mouse that hovers and for keyboard focus, never for a finger. On an iPhone a
+  // mouseover that reveals something is taken as the whole tap and no click follows, so a tap opened
+  // the card and it took a second one to enter the champion.
+  preds.addEventListener('pointerover', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    const li = e.target.closest('.pred');
+    if (li) showWhy(li);
+  });
+  preds.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hideWhy(); });
+  preds.addEventListener('focusin', (e) => {
+    const li = e.target.closest('.pred');
+    if (li && li.matches(':focus-visible')) showWhy(li);
+  });
+  preds.addEventListener('focusout', () => { if (!sheetOpen()) hideWhy(); });
   preds.addEventListener('scroll', hideWhy);
 
   const pop = $('caveatPop');
