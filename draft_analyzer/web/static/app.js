@@ -565,8 +565,24 @@ function buildTeamColumn(side) {
 function bindCombo(side, input, list) {
   let active = -1;
   const options = () => Array.from(list.querySelectorAll('.opt'));
-  const open = () => { fill(false); list.hidden = false; };
+  // The list is placed on the viewport, not inside the team column: the column scrolls and would
+  // cut it off. It hangs under the name, opening toward the middle of the page.
+  const place = () => {
+    const r = input.getBoundingClientRect();
+    const w = Math.min(Math.max(r.width, 320), window.innerWidth - 16);
+    const left = Math.max(8, Math.min(side === 'red' ? r.right - w : r.left, window.innerWidth - w - 8));
+    const top = r.bottom + 4;
+    list.style.width = w + 'px';
+    list.style.left = Math.round(left) + 'px';
+    list.style.top = Math.round(top) + 'px';
+    list.style.maxHeight = Math.max(140, Math.min(420, window.innerHeight - top - 12)) + 'px';
+  };
+  const open = () => { fill(false); list.hidden = false; place(); };
   const close = () => { list.hidden = true; active = -1; };
+  const follow = () => { if (!list.hidden) place(); };
+  window.addEventListener('resize', follow);
+  window.addEventListener('scroll', follow, { passive: true });
+  $(side === 'blue' ? 'teamBlue' : 'teamRed').addEventListener('scroll', follow, { passive: true });
   const highlight = (i) => {
     const opts = options();
     opts.forEach((o, j) => o.classList.toggle('active', j === i));
@@ -603,7 +619,7 @@ function bindCombo(side, input, list) {
     active = -1;
   }
   input.addEventListener('focus', () => { input.select(); open(); });
-  input.addEventListener('input', () => { fill(true); list.hidden = false; if (input.value.trim()) highlight(0); });
+  input.addEventListener('input', () => { fill(true); list.hidden = false; place(); if (input.value.trim()) highlight(0); });
   input.addEventListener('keydown', (e) => {
     const opts = options();
     if (e.key === 'ArrowDown') { e.preventDefault(); if (list.hidden) open(); highlight(Math.min(active + 1, opts.length - 1)); }
