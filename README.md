@@ -92,8 +92,12 @@ railway up deploy --path-as-root                   # Railway builds the Dockerfi
 ```
 
 The container listens on `PORT`, answers `/health` once the models are loaded, runs unprivileged and needs
-about 560 MB of memory. Set `TRUST_PROXY=1` on the host so the per-visitor limit sees the visitor's address
-(Railway sends it as `X-Real-IP`); never set it where visitors reach the server directly.
+about 560 MB of memory. Two settings live on the host, not in the repository: the variable `TRUST_PROXY=1`, so the
+per-visitor limit sees the visitor's address (Railway sends it as `X-Real-IP`; never set it where visitors reach
+the server directly), and the health check path `/health`, so a deploy only goes live once the models have loaded.
+On Railway the service was created with `railway add --service web --variables TRUST_PROXY=1` and the health
+check set with `railway environment edit --json` (`deploy.healthcheckPath`); a `railway.json` in the upload was
+not picked up and that format is being retired.
 
 One prediction costs about 1.8 CPU-seconds, almost all of it the exact explanations, and the server computes one
 at a time: 1.1 s on 2 cores, 0.6 s on 4 (measured in the container). To keep that from becoming a queue the

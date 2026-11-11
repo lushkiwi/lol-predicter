@@ -31,7 +31,7 @@ RUNTIME_FILES = (
     "data/raw/ddragon/versions.json",
 )
 IMAGE_CACHE = "data/raw/ddragon/img"  # optional: saves the host refetching icons after every deploy
-TOP_LEVEL = ("Dockerfile", "railway.json", "requirements-serve.txt", "LICENSE")
+TOP_LEVEL = ("Dockerfile", "requirements-serve.txt", "LICENSE")
 MANIFEST = "MANIFEST.json"
 
 CHECK = """
