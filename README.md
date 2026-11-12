@@ -1,6 +1,6 @@
 # LoL Pro Draft Analyzer
 
-**Live: https://lolpredictor.up.railway.app** (data through 9 November 2026)
+**Live: https://lolpredictor.pro** (data through 9 November 2026)
 
 Given a professional League of Legends draft in progress, this predicts:
 
