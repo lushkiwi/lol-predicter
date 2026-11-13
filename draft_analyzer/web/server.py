@@ -149,7 +149,7 @@ def session() -> LiveSession:
 
 def build_meta(sess: LiveSession) -> dict:
     champs = pd.read_parquet(config.CHAMPIONS_PATH)
-    engine = sess.new_engine()
+    engine = sess.base_engine()  # read only
     roles = engine.block("roles")
     counts = roles.counts.read(engine.t_now)  # (C, 5) recent games per champion and role
     role_probs = (counts + roles.prior_strength / 5.0) / (counts.sum(axis=1, keepdims=True) + roles.prior_strength)
