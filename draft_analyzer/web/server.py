@@ -6,6 +6,7 @@ win probability update after every action.
 
 Endpoints
     GET  /                       the page (static/index.html)
+    GET  /about                  the maker's "About me" page (static/about.html)
     GET  /api/meta               champions, teams with their latest rosters, leagues, patches, draft order
     POST /api/predict            body: a draft state (same fields as the CLI state file); returns predictions
     GET  /img/champion/<id>.png  champion icon from Data Dragon, cached on disk after the first request
@@ -284,6 +285,11 @@ def champion_splash(name: str) -> FileResponse:
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/about")
+def about() -> FileResponse:
+    return FileResponse(STATIC / "about.html", headers={"Cache-Control": "no-cache"})
 
 
 class _RevalidatedStatic(StaticFiles):
