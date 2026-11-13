@@ -101,6 +101,13 @@ def test_splash_art_only_for_known_champions(client):
     assert client.get("/img/splash/NotAChampion.jpg").status_code == 404
 
 
+def test_about_page_is_served_and_linked_from_the_draft(client):
+    r = client.get("/about")
+    assert r.status_code == 200 and "Shikhar Joshi" in r.text
+    assert 'href="/about"' in client.get("/").text
+    assert client.get("/static/about.css").status_code == 200
+
+
 def test_answers_are_remembered_and_bodies_are_bounded(client, state):
     s = {**state, "actions": ["Azir"]}
     first = client.post("/api/predict", json=s)

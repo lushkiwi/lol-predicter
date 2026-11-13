@@ -161,6 +161,14 @@ input:focus, select:focus { outline: none; border-color: var(--muted); }
 
 .data-through { white-space: nowrap; }
 .about-wrap { position: relative; }
+/* the way to the maker's page: the one filled button in the bar, so it is easy to find */
+.me-btn {
+  display: inline-flex; align-items: center; padding: 5px 13px; border-radius: 999px; white-space: nowrap;
+  background: var(--text); color: var(--bg); font-weight: 600; text-decoration: none;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.me-btn:hover { background: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.14); }
+.me-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .about-pop {
   position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 400px; max-width: calc(100vw - 24px);
   padding: 14px 16px; background: var(--raise); border: 1px solid var(--line-2); border-radius: 4px;
@@ -169,6 +177,7 @@ input:focus, select:focus { outline: none; border-color: var(--muted); }
 .about-pop p { margin: 0 0 9px; }
 .about-pop p:last-child { margin-bottom: 0; }
 .about-pop p.muted { font-size: 12px; }
+.about-pop:not([hidden]) { max-height: calc(100vh - 72px); overflow-y: auto; overscroll-behavior: contain; }
 .series { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .series-game { font: 600 17px/1 var(--display); font-stretch: condensed; text-transform: uppercase; letter-spacing: 0.06em; }
 .series-score { font-weight: 600; }
@@ -689,7 +698,8 @@ b.against { color: var(--muted); }
   .topbar { position: relative; gap: 4px 12px; padding: 9px 12px; }
   .spacer { display: none; }
   .brand { order: 0; }
-  .about-wrap { order: 1; margin-left: auto; position: static; }
+  .me-btn { order: 1; margin-left: auto; min-height: 36px; }
+  .about-wrap { order: 1; position: static; }
   .setup-wrap { order: 2; flex-basis: 100%; }
   .topbar > .field, #swapSides, .series, .notices { order: 3; }
   .about-pop { left: 12px; right: 12px; width: auto; max-width: none; top: calc(100% + 4px); }

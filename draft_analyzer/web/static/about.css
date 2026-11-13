@@ -1,0 +1,129 @@
+/* The "About me" page. Same type and neutrals as the draft page; the only colour is the brands' own,
+ * on the three social links that are meant to stand out. */
+@font-face {
+  font-family: "Sofia Sans"; font-style: normal; font-weight: 400 600; font-display: swap;
+  src: url("/static/fonts/sofia-sans-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Sofia Sans Condensed"; font-style: normal; font-weight: 500 600; font-display: swap;
+  src: url("/static/fonts/sofia-sans-condensed-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --bg: #0c0d0f;
+  --raise: #16181b;
+  --raise-2: #202327;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-2: rgba(255, 255, 255, 0.18);
+  --text: #edebe6;
+  --soft: #c6c4bd;
+  --muted: #9a9891;
+  --sans: "Sofia Sans", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --display: "Sofia Sans Condensed", "Avenir Next Condensed", "DIN Condensed", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+  background: var(--bg); color: var(--text); font: 400 16px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+a:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+
+.bar, .foot { padding: 18px 24px; }
+.bar { border-bottom: 1px solid var(--line); }
+.back {
+  font: 600 15px/1 var(--display); font-stretch: condensed; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--muted); text-decoration: none; transition: color 0.15s;
+}
+.back:hover { color: var(--text); }
+.foot { margin-top: auto; }
+
+.page { width: 100%; max-width: 760px; margin: 0 auto; padding: 56px 24px 32px; display: grid; gap: 52px; }
+
+.kicker, .sec {
+  margin: 0; color: var(--muted); font: 500 14px/1 var(--display); font-stretch: condensed;
+  text-transform: uppercase; letter-spacing: 0.14em;
+}
+h1 {
+  margin: 10px 0 12px; font: 600 clamp(48px, 11vw, 84px)/0.92 var(--display); font-stretch: condensed;
+  text-transform: uppercase; letter-spacing: 0.01em;
+}
+.tagline { margin: 0 0 22px; color: var(--soft); font-size: 18px; }
+.bio { margin: 0; max-width: 62ch; color: var(--soft); font-size: 17px; }
+.sec { margin-bottom: 16px; }
+
+/* ---------- the three featured socials: each in its brand's colours ---------- */
+.socials { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.social {
+  position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 28px;
+  min-height: 150px; padding: 18px; border-radius: 10px; color: #fff; text-decoration: none; overflow: hidden;
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.social:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5); }
+.social .logo { width: 34px; height: 34px; fill: currentColor; }
+.who { display: grid; gap: 2px; }
+.net { font: 600 24px/1 var(--display); font-stretch: condensed; text-transform: uppercase; letter-spacing: 0.03em; }
+.social .handle { font-size: 15px; opacity: 0.88; overflow-wrap: anywhere; }
+.go { position: absolute; top: 14px; right: 16px; font-size: 20px; line-height: 1; opacity: 0.7; transition: transform 0.2s var(--ease), opacity 0.2s; }
+.social:hover .go { opacity: 1; transform: translate(2px, -2px); }
+
+.ig { background: radial-gradient(circle at 18% 110%, #fdc468 0%, #fa7e1e 18%, #d62976 45%, #962fbf 72%, #4f5bd5 100%); }
+.li { background: #0a66c2; }
+.li::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.12), transparent 55%);
+}
+.tt { background: #050505; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
+.tt:hover { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 14px 34px rgba(0, 0, 0, 0.5); }
+/* TikTok's mark: white with a cyan and a pink shadow either side */
+.tt .logo { filter: drop-shadow(-2px -1.5px 0 #25f4ee) drop-shadow(2px 1.5px 0 #fe2c55); }
+.tt .net { text-shadow: -1px -1px 0 rgba(37, 244, 238, 0.55), 1px 1px 0 rgba(254, 44, 85, 0.55); }
+
+/* ---------- the quieter links ---------- */
+.minor { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 9px; padding: 9px 14px 9px 12px;
+  border: 1px solid var(--line-2); border-radius: 999px; color: var(--text); text-decoration: none; font-size: 15px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.chip:hover { border-color: var(--muted); background: var(--raise); }
+.chip .logo { width: 16px; height: 16px; fill: currentColor; }
+.chip .mark { font: 600 13px/1 var(--display); font-stretch: condensed; letter-spacing: 0.06em; color: #fff; background: #5383e8; padding: 4px 6px; border-radius: 4px; }
+
+/* ---------- projects ---------- */
+.projects { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.projects a {
+  display: grid; grid-template-columns: 210px 1fr auto; gap: 4px 20px; align-items: baseline;
+  padding: 15px 4px; border-bottom: 1px solid var(--line); text-decoration: none; transition: background 0.15s;
+}
+.projects a::after { content: "\2197"; color: var(--muted); transition: color 0.15s, transform 0.2s var(--ease); }
+.projects a:hover { background: var(--raise); }
+.projects a:hover::after { color: var(--text); transform: translate(2px, -2px); }
+.projects b { font: 600 19px/1.15 var(--display); font-stretch: condensed; text-transform: uppercase; letter-spacing: 0.03em; }
+.projects span { color: var(--muted); font-size: 15px; }
+
+@media (max-width: 640px) {
+  .bar, .foot { padding: 14px 16px; }
+  .page { padding: 36px 16px 24px; gap: 40px; }
+  .tagline { font-size: 16px; }
+  .bio { font-size: 16px; }
+  .socials { grid-template-columns: 1fr; gap: 10px; }
+  .social { min-height: 0; flex-direction: row; align-items: center; justify-content: flex-start; gap: 16px; padding: 16px; }
+  .social .logo { width: 30px; height: 30px; }
+  .net { font-size: 21px; }
+  .go { top: 50%; margin-top: -10px; }
+  .projects a { grid-template-columns: 1fr auto; }
+  .projects b { grid-column: 1; }
+  .projects a::after { grid-column: 2; grid-row: 1; }
+  .projects span { grid-column: 1 / -1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}

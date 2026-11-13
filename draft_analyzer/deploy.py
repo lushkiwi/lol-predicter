@@ -48,7 +48,7 @@ s = {"patch": m["default_patch"], "league": t[0]["league"], "blue_team": t[0]["n
      "first_pick_team": t[0]["name"], "blue_players": t[0]["roster"], "red_players": t[1]["roster"], "fearless": "hard", "actions": []}
 r = c.post("/api/predict", json=s)
 assert r.status_code == 200 and len(r.json()["next_action"]["candidates"]) == 12, r.text[:300]
-assert c.get("/").status_code == 200 and c.get("/static/fonts/sofia-sans-latin.woff2").status_code == 200
+assert c.get("/").status_code == 200 and c.get("/about").status_code == 200 and c.get("/static/fonts/sofia-sans-latin.woff2").status_code == 200
 print(m["data_through"])
 """
 
